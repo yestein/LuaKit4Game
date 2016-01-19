@@ -1,7 +1,7 @@
 # LuaKit
 They are written to avoid repeat work, that's all.
 
-Environment
+Version
 ------
 Lua 5.3.1
 
