@@ -8,7 +8,10 @@
 
 local assert = require("lib.assert")
 
-local Util = {}
+if not G_Util then
+    G_Util = {}
+end
+local Util = G_Util
 
 function Util.SafeCall(callback, ...)
     if not callback then
@@ -181,40 +184,101 @@ function Util.MergeTable(table_dest, table_src)
 end
 
 function Util.ShowTB(target_table, max_depth, depth)
+    print(Util.GetTBData(target_table, max_depth, depth))
+end
+
+function Util.GetTBData(target_table, max_depth, depth)
+    local ret_string = ""
     if not target_table then
-        print("nil")
-        return
+        ret_string = "nil"
+        return ret_string
     end
     if not max_depth then
-        max_depth = 2
+        max_depth = 7
     end
     if not depth then
         depth = 1
     end
 
     if depth == 1 then
-        print("= {")
+        ret_string = "= {\n"
     end
 
     local content = nil
     local str_blank = string.rep("  ", depth)
 
     if depth > max_depth then
-        print(str_blank .. "...")
-        return
+        ret_string = ret_string .. str_blank .. "...\n"
+        return ret_string
     end
     for k, v in pairs(target_table) do
         if type(v) ~= "table" then
-            print(string.format("%s[%s] = %s", str_blank, tostring(k), tostring(v)))
+            ret_string = ret_string .. string.format("%s[%s] = %s\n", str_blank, tostring(k), tostring(v))
         else
-            print(string.format("%s[%s] = {", str_blank, tostring(k)))
-            Util.ShowTB(v, max_depth, depth + 1)
-            print(string.format("%s}", str_blank))
+            ret_string = ret_string .. string.format("%s[%s] = {\n", str_blank, tostring(k))
+            local str = Util.GetTBData(v, max_depth, depth + 1)
+            if str then
+                ret_string = ret_string .. str
+            end
+            ret_string = ret_string .. string.format("%s}\n", str_blank)
         end
     end
     if depth == 1 then
-        print("}")
+        ret_string = ret_string .. "}\n"
     end
+    return ret_string
+end
+
+function Util.GetClassData(target_table, depth)
+    if not target_table then
+        return
+    end
+    local ret_string = ""
+    if not depth then
+        depth = 1
+    end
+
+    if depth == 1 then
+        ret_string = string.format("[class:%s]{\n", target_table:GetClassName())
+    end
+
+    local content = nil
+    local str_blank = string.rep("  ", depth)
+
+    if depth > 15 then
+        assert(false)
+        return
+    end
+    if target_table.GetClassData then
+        for k, v in pairs(target_table:GetClassData()) do
+            if type(v) ~= "table" then
+                ret_string = ret_string .. string.format("%s[%s] = %s\n", str_blank, tostring(k), tostring(v))
+            else
+                ret_string = ret_string .. string.format("%s[%s] = {\n", str_blank, tostring(k))
+                ret_string = ret_string .. Util.GetTBData(v, 15, depth + 1)
+                ret_string = ret_string .. string.format("%s}\n", str_blank)
+            end
+        end
+    end
+    for k, v in pairs(target_table) do
+        if type(v) == "table" then
+            local temp_string = nil
+            if v.GetClassData then
+                temp_string = string.format("%s[%s] [class:%s] = {\n", str_blank, tostring(k), v:GetClassName())
+            else
+                temp_string = string.format("%s[%s] = {\n", str_blank, tostring(k))
+            end
+            local child_string = Util.GetClassData(v, depth + 1)
+            if child_string ~= "" then
+                ret_string = ret_string .. temp_string .. child_string .. string.format("%s}\n", str_blank)
+            end
+        end
+    end
+    if depth == 1 then
+        ret_string = ret_string .. "}\n"
+    end
+
+    return ret_string
 end
 
 function Util.GetDistanceSquare(x1, y1, x2, y2)
@@ -381,6 +445,34 @@ function Util.LoadFile(file_path, callback)
     file:close()
     Util.SafeCall(callback, content)
     return content
+end
+
+function Util.RandomPickArray(tb)
+    if #tb == 0 then
+        return
+    end
+    return tb[math.random(1, #tb)]
+end
+
+function Util.RandomPick(count, tb, save_func)
+    local sort_list = {}
+    local pick_list = {}
+    for k, v in pairs(tb) do
+        sort_list[#sort_list + 1] = save_func and save_func(k, v) or v
+    end
+    local length = #sort_list
+    if count >= length then
+        return sort_list
+    end
+
+    while count > 0 do
+        local index = math.random(1, length)
+        pick_list[#pick_list + 1] = sort_list[index]
+        sort_list[index] = sort_list[length]
+        length = length - 1
+        count = count - 1
+    end
+    return pick_list
 end
 
 function Util.GetReadOnly(tb)
@@ -588,7 +680,6 @@ function Util.TransArgs2Str(...)
     return str
 end
 
-
 --Unit Test
 if arg and arg[1] == "util" then
     local function test(...)
@@ -669,37 +760,15 @@ if arg and arg[1] == "util" then
     print(Util.CompareTB(test_table, Util.Str2Val(str1)))
     print(Util.CompareTB(test_table, Util.Str2Val(str2)))
 
-    local time
-    function hook(p)
-        local name = debug.getinfo(2, "n").name
-        if name == "TestHook" or name == "ReloadScript" then
-            if p == "call" then
-                time = os.clock()
-            end
-            Util.ShowTB(debug.getinfo(2, "n"))
-            Util.ShowTB(debug.getinfo(2, "S"))
-            Util.ShowTB(debug.getinfo(2, "u"))
-            Util.ShowTB(debug.getinfo(2, "t"))
-            Util.ShowTB(debug.getinfo(2, "l"))
+    local tb_pick = {1, 2, 3, 4, 5, 6}
+    math.randomseed(os.time())
+    print(table.unpack(Util.RandomPick(math.random(1, 6), tb_pick)))
+    print(table.unpack(Util.RandomPick(math.random(1, 6), tb_pick)))
+    print(table.unpack(Util.RandomPick(math.random(1, 6), tb_pick)))
+    print(table.unpack(Util.RandomPick(math.random(1, 6), tb_pick)))
+    print(table.unpack(Util.RandomPick(math.random(1, 6), tb_pick)))
+    print(table.unpack(Util.RandomPick(math.random(1, 6), tb_pick)))
 
-            if p == "return" then
-                print("cost", os.clock() - time)
-            end
-            print(p, "Hooked!")
-        end
-    end
-
-    local function TestHook()
-        print(1)
-        print(1)
-        print(1)
-        print(1)
-        print(1)
-    end
-
-    local function TestHook1()
-        Util.TestHook()
-    end
 end
 
 return Util

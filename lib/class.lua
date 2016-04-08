@@ -7,8 +7,14 @@
 --                     2. can make the call order of (Init | Uninit) like (instructor | destructor)
 -- Modify       :
 --=======================================================================
+if not G_Class then
+    G_Class = {
+        class_list = {}
+    }
+end
+local Class = G_Class
+local ClassList = {}
 
-local Class = {}
 local assert = require("lib.assert")
 
 local function showStack(s)
@@ -33,13 +39,14 @@ local function AddInheritFunctionOrder(self, function_name)
             end
             base_class = base_class._tbBase
         end
+        local result = nil
         for i = #execute_list, 1, -1 do
             local func, name = table.unpack(execute_list[i])
             if Class.is_debug == 1 then
                 print(string.format("%s%s %s..", string.rep("  ", depth), tostring(name), function_name))
             end
-            local success, result = xpcall(func, showStack, self, ...)
-            if not success then
+            result = {xpcall(func, showStack, self, ...)}
+            if not result[1] then
                 assert(false, "[%s] Order Execute [%s] Faield!", name, function_name)
                 return 0
             end
@@ -53,13 +60,16 @@ local function AddInheritFunctionOrder(self, function_name)
         end
         local child_func = rawget(self, child_function_name)
         if not child_func then
-            return 1
-        end
-        local result, ret = xpcall(child_func, showStack, self, ...)
-        if not result or ret ~= 1 then
+            if result then
+                return table.unpack(result, 2)
+            end
             return 0
         end
-        return 1
+        result = {xpcall(child_func, showStack, self, ...)}
+        if not result[1] then
+            return 0
+        end
+        return table.unpack(result, 2)
     end
     self.__AddBaseValue(function_name, Inherit)
 end
@@ -130,21 +140,41 @@ local function TryCall(self, func_name, ...)
     end
 end
 
+local function SetDataByKey(self, key, value)
+    local data = self:GetClassData()
+    data[key] = value
+end
+
+local function GetDataByKey(self, key)
+    local data = self:GetClassData()
+    return data[key]
+end
+
 function Class:New(base_class, class_name)
+    local _ENV = _ENV
     local new_class = {}
+    local data = {}
     local base_value_list = {
-        __GetBaseValue = function()
-            return base_value_list
-        end,
         _tbBase = base_class,
         __AddInheritFunctionOrder = AddInheritFunctionOrder,
         __AddInheritFunctionDisorder = AddInheritFunctionDisorder,
-        GetClassName = GetClassName,
+        SetDataByKey = SetDataByKey,
+        GetDataByKey = GetDataByKey,
         TryCall = TryCall,
+        GetClassName = GetClassName,
+        GetClassData = function()
+            return data
+        end,
+        SetClassData = function(self, new_data)
+            data = new_data
+        end,
     }
     base_value_list.__AddBaseValue = function(k, v)
         base_value_list[k] = v
-    end,
+    end
+    base_value_list.__GetBaseValue = function()
+        return base_value_list
+    end
     setmetatable(new_class,
         {
             __index = function(table, key)
@@ -166,11 +196,71 @@ function Class:New(base_class, class_name)
     new_class:__AddInheritFunctionDisorder("Uninit")
 
     new_class.__class_name = class_name --查看的时候还是需要看ClassName的
+    if class_name then
+        -- assert(not self.class_list[class_name])
+        self.class_list[class_name] = new_class
+    end
     return new_class
+end
+
+function Class:NewByName(class_name)
+    local new_class = self.class_list[class_name]
+    assert(new_class)
+    return self:New(new_class)
+end
+
+function Class:GetClassList()
+    return self.class_list
 end
 
 function Class:EnableDebug(is_debug)
     self.is_debug = is_debug
+end
+
+function Class.Save(class)
+    local save_data = nil
+    if type(class) == "table" then
+        if class.import_handler_list and class.import_handler_list["save"] then
+            save_data = {
+                _cn = class:GetClassName(),
+                _cd = class:GetClassData(),
+            }
+        end
+        for k, v in pairs(class) do
+            local member_data = Class.Save(v)
+            if member_data then
+                if not save_data then
+                    save_data = {}
+                end
+                if not save_data._md then
+                    save_data._md = {}
+                end
+                save_data._md[k] = member_data
+            end
+        end
+    end
+    return save_data
+end
+
+function Class.Load(load_data)
+    if not load_data then
+        return
+    end
+
+    local ret_class = nil
+    if load_data._cn then
+        ret_class = Class:NewByName(load_data._cn)
+        ret_class:Init()
+        ret_class:SetClassData(load_data._cd)
+    else
+        ret_class = {}
+    end
+    if load_data._md then
+        for k, v in pairs(load_data._md) do
+            ret_class[k] = Class.Load(v)
+        end
+    end
+    return ret_class
 end
 
 --Unit test
@@ -178,13 +268,16 @@ if arg and arg[1] == "class" then
     Class:EnableDebug(1)
     local test = Class:New(nil, "aaa")
     test._Init = function(self, a, b, c, d)
-       self.a = a
-       self.b = b
-       self.c = c
-       self.d = d
+        self:SetDataByKey("A", a)
+        self.b = b
+        self.c = c
+        self.d = d
     end
     test:Init(1, 2, 3, 4)
-    print(test.a, test.b, test.c, test.d)
+    print(test:GetDataByKey("A"), test.b, test.c, test.d)
+    test:SetClassData({A = 100, B = 21})
+    print(test:GetDataByKey("A"))
+    print(test:GetDataByKey("B"))
 
     local test_b = Class:New(test, "bbb")
     test_b._Init = function(self, a, b, c, d)
@@ -195,6 +288,10 @@ if arg and arg[1] == "class" then
     end
     test_b:Init(1, 2, 3, 4)
     print(test_b.a, test_b.b, test_b.c, test_b.d)
+
+    local test_b_1 = Class:NewByName("bbb")
+    test_b_1:Init(1, 2, 3, 4)
+    print(test_b_1.a, test_b_1.b, test_b_1.c, test_b_1.d)
 
     local test_name = Class:New(test)
     print(test_name:GetClassName())

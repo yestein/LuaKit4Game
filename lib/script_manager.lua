@@ -5,13 +5,18 @@
 -- Description  : description
 -- Modify       :
 --=======================================================================
-local ScriptManager  = {
-    ignore_list = {}
-}
 
-for k, _ in pairs(package.loaded) do
-    ScriptManager.ignore_list[k] = 1
+if not G_ScriptManager then
+    G_ScriptManager  = {
+        ignore_list = {}
+    }
+
+    for k, _ in pairs(package.loaded) do
+        G_ScriptManager.ignore_list[k] = 1
+    end
 end
+
+local ScriptManager = G_ScriptManager
 
 function ScriptManager:Reload(script_name)
     local function reload(script_name)
@@ -31,15 +36,11 @@ function ScriptManager:Reload(script_name)
     end
 end
 
-function reloadscript(script_name)
-    return ScriptManager:Reload(script_name)
-end
-
 if arg and arg[1] == "script_manager" then
     local Util = require("lib.util")
     Util.ShowTB(ScriptManager.ignore_list, 1)
 
-    reloadscript()
+    ScriptManager:Reload()
 end
 
 return ScriptManager

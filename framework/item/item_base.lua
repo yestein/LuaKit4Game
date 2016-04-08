@@ -7,36 +7,43 @@
 --=======================================================================
 local Class = require("lib.class")
 local assert = require("lib.assert")
-local LogicBaseNode = require("framework.logic_base_node")
+local CreateNode = require("framework.node_factory")
 
-local ItemBase = Class:New(LogicBaseNode, "ITEM_BASE")
+local ItemBase = CreateNode("ITEM_BASE", {"event"})
+ItemBase:__AddInheritFunctionOrder("OnCreate")
+ItemBase:__AddInheritFunctionOrder("OnUse")
+ItemBase:__AddInheritFunctionOrder("OnDrop")
+ItemBase:__AddInheritFunctionOrder("OnDestroy")
 
 function ItemBase:_Uninit(...)
-    self.template = nil
-    self.id = nil
+    self.data = nil
     return 1
 end
 
 function ItemBase:_Init(id, template, ...)
-    self.id = id
-    self.template = template
+    self:SetDataByKey("id", id)
+    self:SetDataByKey("template", template)
     return 1
 end
 
 function ItemBase:GetId()
-    return self.id
+    return self:GetDataByKey("id")
 end
 
 function ItemBase:GetTemplate()
-    return self.template
+    return self:GetDataByKey("template")
+end
+
+function ItemBase:_OnUse()
+    self:FireEvent("USE", self:GetId(), self:GetTemplate())
 end
 
 --Unit Test
 if arg and arg[1] == "item_base" then
     local item = Class:New(ItemBase)
     item:Init("1", "test")
-    print(item:GetId(11))
-    print(item:GetTemplate(1))
+    print(item:GetId())
+    print(item:GetTemplate())
     item:Uninit()
 end
 

@@ -23,7 +23,7 @@ local function createFrameMode(logic_fps_, logic_func, exit_func)
         return 1
     end
 
-    local function loop()
+    local function loop(call_back)
         if exit_flag then
             return
         end
@@ -38,11 +38,14 @@ local function createFrameMode(logic_fps_, logic_func, exit_func)
                 logic_func(logic_frame)
             end
         end
+        if call_back then
+            call_back()
+        end
     end
 
-    local function run()
+    local function run(call_back)
         while not exit_flag do
-            loop()
+            loop(call_back)
         end
         return 0
     end
@@ -65,16 +68,16 @@ end
 if arg and arg[1] == "framework_helper" then
     local logic_fps = 20
     local function logic(frame)
+        print(frame)
         if frame % logic_fps == 0 then
             print(frame)
         end
     end
 
     local framework = createFrameMode(logic_fps, logic)
-    framework.Run(logic, display)
+    framework.Run()
 end
 
 return {
     create = create,
 }
-

@@ -6,28 +6,70 @@
 -- Modify       :
 --=======================================================================
 
-local LuaEvent = require("framework.event")
+
 local Class = require("lib.class")
 local Util = require("lib.util")
 local assert = require("lib.assert")
 
-local LogicBaseNode = Class:New(nil, "LOGIC_BASE_NODE")
+local handler_list = {
+    event = require("framework.handler.event_handler"),
+    save = require("framework.handler.save_handler"),
+    fsm = require("framework.handler.fsm")
+}
+
+if not LogicBaseNode then
+    LogicBaseNode = Class:New(nil, "LOGIC_BASE_NODE")
+end
 
 function LogicBaseNode:_Init( ... )
-    self.timer_list = {}
+    local import_handler_list = self.import_handler_list
+    if import_handler_list then
+        for name, handler in pairs(import_handler_list) do
+            handler.Init(self, ...)
+        end
+    end
     return 1
 end
 
 function LogicBaseNode:_Uninit( ... )
+    for name, handler in pairs(self.import_handler_list) do
+        handler.Uninit(self, ...)
+    end
+
     self:UnRegistAllTimer()
     self.timer_list = nil
 
     self:UninitChild()
     self:UnregistAllEventListen()
     self.child_list       = nil
-    self.reg_event_list   = nil
     self.is_debug          = nil
 
+    return 1
+end
+
+function LogicBaseNode:ImportHandler(name)
+    local handler = handler_list[name]
+    if not handler then
+        assert(false)
+        return
+    end
+    local import_handler_list = rawget(self, "import_handler_list")
+    if not import_handler_list then
+        self.import_handler_list = {}
+        import_handler_list = self.import_handler_list
+    end
+    import_handler_list[name] = handler
+
+    if not handler.import_function then
+        return
+    end
+    for func_name, func in pairs(handler.import_function) do
+        if not self[func_name] then
+            self[func_name] = func
+        else
+            assert(false, func_name)
+        end
+    end
     return 1
 end
 
@@ -44,7 +86,7 @@ function LogicBaseNode:UninitChild()
         return
     end
     for name, child in pairs(self.child_list) do
-        child:ReceiveMessage("Uninit")
+        child:TryCall("Uninit")
     end
     self.child_list = nil
 end
@@ -60,8 +102,7 @@ function LogicBaseNode:AddChild(child_name, child)
 
     assert(not self.child_list[child_name])
     self.child_list[child_name] = child
-    child.__parent = self
-    assert(self:RegistChildMessageHandlerByName(child_name) == 1)
+    child:__AddBaseValue("__parent", self)
 end
 
 function LogicBaseNode:RemoveChild(child_name)
@@ -116,54 +157,6 @@ function LogicBaseNode:Exec(func_name, ...)
     end
 end
 
-function LogicBaseNode:FireEvent(event_name, ...)
-    LuaEvent:SetTrigger(self)
-    LuaEvent:FireEvent(event_name, ...)
-end
-
-function LogicBaseNode:RegistEventListen(event_type, func_name)
-    if not self.reg_event_list then
-        self.reg_event_list = {}
-    end
-    if not self.reg_event_list[event_type] then
-        self.reg_event_list[event_type] = {}
-    end
-    local id_reg = LuaEvent:RegistEvent(event_type, self[func_name], self)
-    self.reg_event_list[event_type][id_reg] = 1
-    return id_reg
-end
-
-function LogicBaseNode:UnregistEventListen(event_type, id_reg)
-    if not self.reg_event_list then
-        assert(false)
-        return
-    end
-    if not self.reg_event_list[event_type] then
-        assert(false)
-        return
-    end
-
-    if not self.reg_event_list[event_type][id_reg] then
-        assert(false)
-        return
-    end
-
-    LuaEvent:UnRegistEvent(event_type, id_reg)
-    self.reg_event_list[event_type][id_reg] = nil
-end
-
-function LogicBaseNode:UnregistAllEventListen()
-    if not self.reg_event_list then
-        return
-    end
-    for event_type, id_list in pairs(self.reg_event_list) do
-        for id_reg, _ in pairs(id_list) do
-            LuaEvent:UnRegistEvent(event_type, id_reg)
-        end
-    end
-    self.reg_event_list = {}
-end
-
 function LogicBaseNode:Print(log_level, fmt, ...)
     local log_node = self:GetChild("log")
     if not log_node then
@@ -178,6 +171,9 @@ function LogicBaseNode:LoadTimer(timer_name, timer)
 end
 
 function LogicBaseNode:GetTimer(timer_name)
+    if not self.timer_list then
+        self.timer_list = {}
+    end
     local timer_info = self.timer_list[timer_name]
     if timer_info then
         return timer_info[1], timer_info[2]
@@ -215,6 +211,9 @@ function LogicBaseNode:UnregistTimer(timer_name, timer_id)
 end
 
 function LogicBaseNode:UnRegistAllTimer()
+    if not self.timer_list then
+        return
+    end
     for timer_name, timer_info in pairs(self.timer_list) do
         local timer, timer_id_list = timer_info[1], timer_info[2]
         for timer_id, _ in pairs(timer_id_list) do
@@ -227,14 +226,25 @@ end
 --Unit Test
 if arg and arg[1] == "logic_base_node" then
     local Debug = require("framework.debug")
-    function LogicBaseNode:testListen(p)
-        print(LuaEvent:GetTrigger(), p)
+    local a = Class:New(LogicBaseNode)
+    a:ImportHandler("event")
+    LogicBaseNode:ImportHandler("event")
+    function LogicBaseNode:testListen(p, q)
+        print(self:GetEventInfo())
+        print(p, q)
     end
-    LogicBaseNode:RegistEventListen("TEST_TIRGGER", "testListen")
+    function a:testListen(p, q)
+        self:FireEvent("TEST_TRIGGER_2", 3, 5)
+        print("test", self:GetEventInfo())
+    end
+    print(LogicBaseNode, a)
+    LogicBaseNode:RegistEventListen("TEST_TRIGGER", "testListen")
+    LogicBaseNode:RegistEventListen("TEST_TRIGGER_2", "testListen")
+    a:RegistEventListen("TEST_TRIGGER", "testListen")
     Debug:HookEvent(Debug.MODE_BLACK_LIST)
-    LuaEvent:FireEvent("TEST_TIRGGER", 1)
-    LogicBaseNode:FireEvent("TEST_TIRGGER", 2)
-    LuaEvent:FireEvent("TEST_TIRGGER", 3)
+    LogicBaseNode:FireEvent("TEST_TRIGGER", 1, "a")
+    LogicBaseNode:FireEvent("TEST_TRIGGER", 2)
+    LogicBaseNode:FireEvent("TEST_TRIGGER", 3)
 end
 
 return LogicBaseNode

@@ -184,7 +184,10 @@ local CONFIG_GENERATOR = {
     ["table"] = GeneratorConfigTable,
 }
 
-local ConfigLoader = {}
+if not G_ConfigLoader then
+    G_ConfigLoader = {}
+end
+local ConfigLoader = G_ConfigLoader
 function ConfigLoader.LoadConfigFile(file_path, config_type, ...)
     if not config_type then
         config_type = "lua"

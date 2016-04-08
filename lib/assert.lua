@@ -9,7 +9,7 @@ local Log = require("lib.log")
 
 local function MyAssert(expression, fmt, ...)
     if not expression then
-        fmt = "assertion failed!\t" .. fmt
+        fmt = "assertion failed!\t" .. (fmt or "")
         Log:Print(Log.LOG_ERROR, fmt, ...)
         local str_traceback = debug.traceback()
         Log:Print(Log.LOG_ERROR, str_traceback)

@@ -8,10 +8,9 @@
 
 local Class = require("lib.class")
 local assert = require("lib.assert")
-local Log = require("lib.log")
 
-local ItemNormal = require("framework.item.item_normal")
-local ItemBox = Class:New(ItemNormal, "ITEM_BOX")
+local ItemBase = require("framework.item.item_base")
+local ItemBox = Class:New(ItemBase, "ITEM_BOX")
 
 function ItemBox:_Uninit()
     return 1
@@ -30,10 +29,9 @@ function ItemBox:AddItem(item)
     local class_name = item:GetClassName()
     local template = item:GetTemplate()
     self:AddToSearchList(class_name, template, id)
-    self:FireEvent("ITEM_BOX.ADD_ITEM", class_name, template, id, item:GetStackCount())
 
-    item:Exec("OnAdd")
-    if item:GetStackCount() <= 0 then
+    local success, need_remove = item:OnCreate()
+    if need_remove == 1 then
         self:RemoveItemById(id)
     end
 end
@@ -48,13 +46,13 @@ function ItemBox:RemoveItemById(id)
         assert(false, "No Item[%d]", id)
         return
     end
-    item:Exec("OnRemove")
-    self.item_list[id] = nil
+    item:OnDestory()
 
     local class_name = item:GetClassName()
     local template = item:GetTemplate()
     self:RemoveFromSearchList(class_name, template, id)
-    self:FireEvent("ITEM_BOX.REMOVE_ITEM", class_name, template, id, item:GetStackCount())
+    self.item_list[id] = nil
+    item:Uninit()
 end
 
 function ItemBox:AddToSearchList(class_name, template, id)
@@ -72,11 +70,22 @@ end
 
 function ItemBox:RemoveFromSearchList(class_name, template, id)
     local result = 0
-    local list = self:SearchItemList(class_name, template)
+    local template_list = self.search_item_list[class_name]
+    local list
+    if not template_list then
+        goto Exit0
+    end
+    list = template_list[template]
     if not list then
         goto Exit0
     end
     list[id] = nil
+    if not next(list) then
+        template_list[template] = nil
+    end
+    if not next(template_list) then
+        self.search_item_list[class_name] = nil
+    end
     result = 1
 ::Exit0::
     if result ~= 1 then
@@ -120,20 +129,16 @@ function ItemBox:GetItemListByTemplate(class_name, template)
     return ret
 end
 
-function ItemBox:UseItemById(id, use_count, ...)
+function ItemBox:UseItemById(id, ...)
     local item = self:GetItemById(id)
     if not item then
         assert(false, "No Item[%d]", id)
         return
     end
-    if not use_count then
-        use_count = 1
-    end
-    local result, reason = item:TryCall("OnUse", use_count, ...)
-    if result == 1 and item:GetStackCount() <= 0 then
+    local result, reason, need_remove = item:OnUse(...)
+    if result == 1 and need_remove == 1 then
         self:RemoveItemById(id)
     end
-    self:FireEvent("ITEM_BOX.USE_ITEM", id, use_count, result, reason)
     return result, reason
 end
 
@@ -160,7 +165,7 @@ if arg and arg[1] == "item_box" then
 
     local test_autouse_item = Class:New(ItemNormal)
     test_autouse_item:Init(2, "auto_use", 10, 10)
-    function test_autouse_item:OnAdd()
+    function test_autouse_item:OnCreate()
         return self:OnUse(self:GetStackCount())
     end
 
