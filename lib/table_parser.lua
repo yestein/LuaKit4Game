@@ -8,45 +8,41 @@
 local Util = require("lib.util")
 local assert = require("lib.assert")
 local NewFormula = require("lib.formula")
+local NewLuaSegment = require("lib.lua_segment")
 
+local PARSE_TXT_FUNC_LIST = {}
+local TableParser = {}
 
-local PARSE_TXT_FUNC_LIST = {
-    str = function(v)
-        return v
-    end,
-
-    lua = function(v)
-        return Util.Str2Val(v)
-    end,
-
-    num = function(v)
-        return tonumber(v) or 0
-    end,
-
-    formula = function(v, row_data, raw_line_no, table_data, gen_env_func)
-        return NewFormula(v, row_data, raw_line_no, table_data, gen_env_func)
-    end,
-
-    static_formula = function(v, row_data, raw_line_no, table_data, gen_env_func)
-        return NewFormula(v, row_data, raw_line_no, table_data, gen_env_func):CalcValue()
-    end,
-
-    comment = function(v)
-        return nil
-    end,
-}
-
-local copy_parse_tb = Util.CopyTB(PARSE_TXT_FUNC_LIST, 1)
-for k, v in pairs(copy_parse_tb) do
-    if k ~= "comment" then
-        PARSE_TXT_FUNC_LIST["param_" .. k] = v
+function TableParser.AddParseRule(key, func)
+    PARSE_TXT_FUNC_LIST[key] = func
+    if key ~= "comment" then
+        PARSE_TXT_FUNC_LIST["param_" .. key] = func
     end
 end
-copy_parse_tb = nil
 
+local function ToStr(v)
+    return v
+end
 
+local function ToNumber(v)
+    return tonumber(v) or 0
+end
 
-local TableParser = {}
+local function ToComment(v)
+    return nil
+end
+
+local function FormulaValue(v, row_data, raw_line_no, table_data, gen_env_func)
+    return NewFormula(v, row_data, raw_line_no, table_data, gen_env_func):CalcValue()
+end
+
+TableParser.AddParseRule("str", ToStr)
+TableParser.AddParseRule("num", ToNumber)
+TableParser.AddParseRule("comment", ToComment)
+TableParser.AddParseRule("value", Util.Str2Val)
+TableParser.AddParseRule("lua", NewLuaSegment)
+TableParser.AddParseRule("formula", NewFormula)
+TableParser.AddParseRule("static_formula", FormulaValue)
 
 function TableParser.GetParser(value_type)
     return PARSE_TXT_FUNC_LIST[value_type]
@@ -74,7 +70,34 @@ end
 
 --Unit Test
 if arg and arg[1] == "table_parser" then
+    print(TableParser.Parse("str", "abcd"))
+    print(TableParser.Parse("num", "23"))
+    print(TableParser.Parse("comment", "this is comment"))
+    local segment = TableParser.Parse("lua", "randomseed(seed); return random(min, max) + random(1, min)")
+    print(segment)
+    print(segment:Run({seed = os.time(), randomseed = math.randomseed, random = math.random, min = 10, max = 20}))
+    print(segment:Run({seed = os.time(), randomseed = math.randomseed, random = function(a, b) return a end, min = 10, max = 20}))
+    print(TableParser.Parse("value", "math.random(1,3) + 2"))
 
+    local row_data = {a = 1, b = 2, c = "hello", d = "world"}
+    local formula = TableParser.Parse("formula", "((_row.a + level) * _row.b * 10 + _random(1, 10)) .. [[ ]] .. _row.c .. [[ ]] .. _row.d", row_data, 1, {row_data},
+        function()
+            return {
+                level = 9,
+                _random = math.random,
+            }
+        end
+    )
+    print(formula)
+    print(formula:CalcValue(), formula:CalcValue())
+    print(TableParser.Parse("static_formula", "((_row.a + level) * _row.b * 10 + _random(1, 10)) .. [[ ]] .. _row.c .. [[ ]] .. _row.d", row_data, 1, {row_data},
+        function()
+            return {
+                level = 9,
+                _random = math.random,
+            }
+        end
+    ))
 end
 
 return TableParser

@@ -16,6 +16,7 @@ ItemBase:__AddInheritFunctionOrder("OnDrop")
 ItemBase:__AddInheritFunctionOrder("OnDestroy")
 
 function ItemBase:_Uninit(...)
+    self:OnDestroy()
     self.data = nil
     return 1
 end
@@ -32,10 +33,6 @@ end
 
 function ItemBase:GetTemplate()
     return self:GetDataByKey("template")
-end
-
-function ItemBase:_OnUse()
-    self:FireEvent("USE", self:GetId(), self:GetTemplate())
 end
 
 --Unit Test

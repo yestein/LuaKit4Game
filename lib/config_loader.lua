@@ -35,10 +35,11 @@ end
 
 local SAVE_TITLE_FUNC_LIST = {
     str = _common_title,
-    lua = _common_title,
     num = _common_title,
     formula = _common_title,
     static_formula = _common_title,
+    value = _common_title,
+    lua = _common_title,
 }
 
 local copy_save_tb = Util.CopyTB1(SAVE_TITLE_FUNC_LIST)

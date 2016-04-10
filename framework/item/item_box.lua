@@ -33,6 +33,8 @@ function ItemBox:AddItem(item)
     local success, need_remove = item:OnCreate()
     if need_remove == 1 then
         self:RemoveItemById(id)
+    elseif need_remove == 2 then
+        self:DestroyItemById(id)
     end
 end
 
@@ -46,12 +48,20 @@ function ItemBox:RemoveItemById(id)
         assert(false, "No Item[%d]", id)
         return
     end
-    item:OnDestory()
 
     local class_name = item:GetClassName()
     local template = item:GetTemplate()
     self:RemoveFromSearchList(class_name, template, id)
     self.item_list[id] = nil
+    return item
+end
+
+function ItemBox:GetItemList()
+    return self.item_list
+end
+
+function ItemBox:DestroyItemById(id)
+    local item = self:RemoveItemById(id)
     item:Uninit()
 end
 
@@ -136,8 +146,12 @@ function ItemBox:UseItemById(id, ...)
         return
     end
     local result, reason, need_remove = item:OnUse(...)
-    if result == 1 and need_remove == 1 then
-        self:RemoveItemById(id)
+    if result == 1 then
+        if need_remove == 1 then
+            self:RemoveItemById(id)
+        elseif need_remove == 2 then
+            self:DestroyItemById(id)
+        end
     end
     return result, reason
 end
