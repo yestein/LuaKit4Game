@@ -5,7 +5,9 @@
 -- Description  : description
 -- Modify       :
 --=======================================================================
-local FSM = {}
+if not FSM then
+    FSM = {}
+end
 
 function FSM:Init()
     self.machine_data = {}

@@ -7,9 +7,10 @@
 --=======================================================================
 
 local LuaEvent = require("framework.event")
-local assert = require("lib.assert")
 
-local EventHandler = {}
+if not EventHandler then
+    EventHandler = {}
+end
 
 function EventHandler:Init()
 end
@@ -49,12 +50,13 @@ EventHandler.import_function = {
         if not self.reg_event_list[event_type] then
             self.reg_event_list[event_type] = {}
         end
+        assert(not self.reg_event_list[event_type][func_name], "Repeat Event Regist！！Is it duplicate call??")
         local id_reg = LuaEvent:RegistEvent(event_type, self[func_name], self)
-        self.reg_event_list[event_type][id_reg] = 1
+        self.reg_event_list[event_type][func_name] = id_reg
         return id_reg
     end,
 
-    UnregistEventListen = function(self, event_type, id_reg)
+    UnregistEventListen = function(self, event_type, func_name)
         if not self.reg_event_list then
             assert(false)
             return
@@ -64,13 +66,14 @@ EventHandler.import_function = {
             return
         end
 
-        if not self.reg_event_list[event_type][id_reg] then
+        local id_reg = self.reg_event_list[event_type][func_name]
+        if not id_reg then
             assert(false)
             return
         end
 
         LuaEvent:UnRegistEvent(event_type, id_reg)
-        self.reg_event_list[event_type][id_reg] = nil
+        self.reg_event_list[event_type][func_name] = nil
     end,
 
     UnregistAllEventListen = function(self)
@@ -78,7 +81,7 @@ EventHandler.import_function = {
             return
         end
         for event_type, id_list in pairs(self.reg_event_list) do
-            for id_reg, _ in pairs(id_list) do
+            for func_name, id_reg in pairs(id_list) do
                 LuaEvent:UnRegistEvent(event_type, id_reg)
             end
         end

@@ -6,19 +6,20 @@
 -- Modify       :
 --=======================================================================
 
-if not G_ScriptManager then
-    G_ScriptManager  = {
-        ignore_list = {}
-    }
+local ScriptManager =  {}
+local ignore_list = {}
 
-    for k, _ in pairs(package.loaded) do
-        G_ScriptManager.ignore_list[k] = 1
-    end
+require("lib.class")
+
+for k, _ in pairs(package.loaded) do
+    ignore_list[k] = 1
 end
 
-local ScriptManager = G_ScriptManager
+function ScriptManager.AddIgnore(name)
+    ignore_list[name] = 1
+end
 
-function ScriptManager:Reload(script_name)
+function ScriptManager.Reload(script_name)
     local function reload(script_name)
         package.loaded[script_name] = nil
         require(script_name)
@@ -26,21 +27,53 @@ function ScriptManager:Reload(script_name)
     if script_name then
         reload(script_name)
     else
-        local ignore_list = self.ignore_list
+        local need_loaded = {}
         for script_name, _ in pairs(package.loaded) do
             if not ignore_list[script_name] then
-                print("reload", script_name)
-                reload(script_name)
+                need_loaded[script_name] = 1
             end
+        end
+        for script_name, _ in pairs(need_loaded) do
+            reload(script_name)
         end
     end
 end
 
-if arg and arg[1] == "script_manager" then
-    local Util = require("lib.util")
-    Util.ShowTB(ScriptManager.ignore_list, 1)
+print("自定义全局表")
+_G.GameGlobal = {}
+setmetatable(_G, {
+    __index = function(table, k)
+        local v = rawget(table, k)
+        if v then
+           return v
+        end
+        v = table.GameGlobal[k]
+        return v
+    end,
+    __newindex = function(tb, key, value)
+        if rawget(_G, key) then
+            print(string.format("[%s] conflict!", key))
+        end
+        tb.GameGlobal[key] = value
+    end,
+})
 
-    ScriptManager:Reload()
+ScriptManager.AddIgnore("lib.script_manager")
+
+if arg and arg[1] == "script_manager.bytes" then
+    local Util = require("lib.util")
+    Util.ShowTB(ignore_list, 1)
+
+    ScriptManager.Reload()
+    print("================")
+    TESTTTTTTT = {}
+    for k, v in pairs(_G.GameGlobal) do
+        print(k)
+    end
+    ScriptManager.Reload()
+    for k, v in pairs(_G.GameGlobal) do
+        print(k)
+    end
 end
 
 return ScriptManager

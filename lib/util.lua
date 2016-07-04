@@ -8,10 +8,15 @@
 
 local assert = require("lib.assert")
 
-if not G_Util then
-    G_Util = {}
+if not Util then
+    Util = {}
 end
-local Util = G_Util
+
+function Util.ImportLib(lib)
+    for k, v in pairs(lib) do
+        _ENV[k] = v
+    end
+end
 
 function Util.SafeCall(callback, ...)
     if not callback then
@@ -38,14 +43,6 @@ function Util.SafeCall(callback, ...)
     end
 end
 
-function Util.CopyTB1(tb)
-    local ret = {}
-    for k, v in pairs(tb) do
-        ret[k] = v
-    end
-    return ret
-end
-
 function Util.Show2DTB(tb, row, column, is_reverse)
     local title = "\t"
     if is_reverse ~= 1 then
@@ -55,10 +52,10 @@ function Util.Show2DTB(tb, row, column, is_reverse)
         print(title)
         print("-----------------------------------------------------------------------------------------------")
         for i = 1, row do
-            local msg = i.."\t|"
-            if tb[row] then
+            local msg = string.format("r%d\t", i)
+            if tb[i] then
                 for j = 1, column do
-                    msg = msg .."\t"..tostring(tb[i][j])
+                    msg = msg .."\t"..(tb[i][j] or " ")
                 end
                 print(msg)
             end
@@ -69,14 +66,12 @@ function Util.Show2DTB(tb, row, column, is_reverse)
         end
         print(title)
         print("-----------------------------------------------------------------------------------------------")
-        for i = 1, column do
-            local msg = i.."\t|"
-            if tb[column] then
-                for j = 1, row do
-                    msg = msg .."\t"..tostring(tb[j][i])
-                end
-                print(msg)
+        for j = 1, column do
+            local msg = string.format("c%d\t", j)
+            for i = 1, row do
+                msg = msg .."\t"..(tb[i] and tb[i][j] or " ")
             end
+            print(msg)
         end
     end
 end
@@ -447,6 +442,28 @@ function Util.LoadFile(file_path, callback)
     return content
 end
 
+function Util.RandomArray(tb)
+    local count = #tb
+    for i = 1, count - 1 do
+        local index = math.random(i, count)
+        if index ~= i then
+            tb[i], tb[index] = tb[index], tb[i]
+        end
+    end
+end
+
+function Util.RandomPickMap(tb)
+    local array = {}
+    for k, v in pairs(tb) do
+        array[#array + 1] = k
+    end
+    local random_k = Util.RandomPickArray(array)
+    if not random_k then
+        return
+    end
+    return random_k, tb[random_k]
+end
+
 function Util.RandomPickArray(tb)
     if #tb == 0 then
         return
@@ -477,8 +494,16 @@ end
 
 function Util.GetReadOnly(tb)
     local tb_read_only = {}
+    local function iter()
+        return pairs(tb)
+    end
     local mt = {
-        __index = tb,
+        __index = function(table, key)
+            if key == "iter" then
+                return iter
+            end
+            return tb[key]
+        end,
         __newindex = function(tb, key, value)
             assert(false, "Error!Attempt to update a read-only table!!")
         end
@@ -680,8 +705,81 @@ function Util.TransArgs2Str(...)
     return str
 end
 
+function Util.SubArray(array, start_index, end_index)
+    local ret = {}
+    for i = start_index, end_index do
+        local element = array[i]
+        if element then
+            ret[#ret + 1] = element
+        end
+    end
+    return ret
+end
+
+function Util.GetUnionSet()
+    local set_data = {
+        hash = {},
+        array = {},
+    }
+    local Set = {}
+    function Set.Add(element)
+        if not set_data.hash[element] then
+            table.insert(set_data.array, element)
+            set_data.hash[element] = 1
+            return true
+        end
+        return false
+    end
+
+    function Set.Remove(element)
+        local index = nil
+        for i, value in ipairs(set_data.array) do
+            if value == element then
+                index = i
+                break
+            end
+        end
+        if index then
+            table.remove(set_data.array, index)
+            set_data.hash[element] = nil
+        end
+    end
+
+    function Set._GetHash()
+        return set_data.hash
+    end
+
+     function Set._GetArray()
+        return set_data.array
+    end
+
+    function Set.IsIn(element)
+        return set_data.hash[element] and true or false
+    end
+
+    function Set.Clear()
+        set_data.hash = {}
+        set_data.array = {}
+    end
+
+    function Set.ForEach(func)
+        for _, element in ipairs(set_data.array) do
+            if func(element) == 1 then
+                break
+            end
+        end
+    end
+
+    function Set.Random()
+        local r = math.random(1, #set_data.array)
+        return set_data.array[r]
+    end
+
+    return Set
+end
+
 --Unit Test
-if arg and arg[1] == "util" then
+if arg and arg[1] == "util.bytes" then
     local function test(...)
         print(...)
     end
@@ -760,6 +858,7 @@ if arg and arg[1] == "util" then
     print(Util.CompareTB(test_table, Util.Str2Val(str1)))
     print(Util.CompareTB(test_table, Util.Str2Val(str2)))
 
+    print("==RandomPick==")
     local tb_pick = {1, 2, 3, 4, 5, 6}
     math.randomseed(os.time())
     print(table.unpack(Util.RandomPick(math.random(1, 6), tb_pick)))
@@ -769,6 +868,32 @@ if arg and arg[1] == "util" then
     print(table.unpack(Util.RandomPick(math.random(1, 6), tb_pick)))
     print(table.unpack(Util.RandomPick(math.random(1, 6), tb_pick)))
 
+    print("==SubArray==")
+    local a = {1, 2, 3, 4, 5}
+    print(table.unpack(Util.SubArray(a, 1, 3)))
+    print(table.unpack(Util.SubArray(a, 3, 5)))
+    print(table.unpack(Util.SubArray(a, 2, 4)))
+
+    print("==Read Only==")
+    local b = Util.GetReadOnly(a)
+    for i, v in pairs(b) do
+        print(i, v)
+    end
+    for i, v in b.iter() do
+        print(i, v)
+    end
+
+    print("==RandomArray==")
+    local tb = {
+        {0, 1},
+        {-1, 0},
+        {1, 0},
+        {0, -1},
+    }
+    Util.RandomArray(tb)
+    Util.ShowTB(tb)
+
+    Util.ShowTB(Util.SplitToken("\t\t", "\t"))
 end
 
 return Util

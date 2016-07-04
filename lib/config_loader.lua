@@ -40,6 +40,7 @@ local SAVE_TITLE_FUNC_LIST = {
     static_formula = _common_title,
     value = _common_title,
     lua = _common_title,
+    lua_ret = _common_title,
 }
 
 local copy_save_tb = Util.CopyTB1(SAVE_TITLE_FUNC_LIST)
@@ -67,12 +68,12 @@ local function LoadConfigTable(file_path, gen_env_func)
     if not file_path or file_path == "" then
         return
     end
-    local result = {}
+    local parse_result = {}
     local row = -2
     local title_list
     local value_type_list = {}
 
-    local function readLine(line_content)
+    local function parseLine(line_content)
         if line_content == "" then
             return
         end
@@ -88,15 +89,15 @@ local function LoadConfigTable(file_path, gen_env_func)
                 value_type_list[title] = token_list[i]
             end
         else
-            result[row] = {}
+            parse_result[row] = {}
             for i, v in ipairs(token_list) do
                 local title_name = title_list[i]
                 local value_type = value_type_list[title_name]
                 assert(value_type)
                 local save_func = SAVE_TITLE_FUNC_LIST[value_type]
                 if save_func then
-                    local item = TableParser.Parse(value_type, v, result[row], row, result, gen_env_func)
-                    save_func(result[row], title_name, item)
+                    local item = TableParser.Parse(value_type, v, parse_result[row], row, parse_result, gen_env_func)
+                    save_func(parse_result[row], title_name, item)
                 end
             end
         end
@@ -110,11 +111,11 @@ local function LoadConfigTable(file_path, gen_env_func)
                 if line_content:sub(len, len) == "\r" then
                     line_content = line_content:sub(1, len - 1)
                 end
-                readLine(line_content)
+                parseLine(line_content)
             end
         end
     )
-    return result
+    return parse_result
 end
 
 local function GeneratorConfigLua(tb)
@@ -234,25 +235,12 @@ if arg and arg[1] == "config_loader" then
     end
 
     function TestParse()
-        local tb = ConfigLoader.LoadConfigFile("./setting/test_formula.txt", "table",
+        local tb = ConfigLoader.LoadConfigFile("./setting/buff.txt", "table",
             function()
                 return {_random = math.random}
             end
         )
-        for i = 1, #tb do
-            local data = tb[i]
-
-            print("id", data.id, type(data.id))
-            print("test_num", data.test_num, type(data.test_num))
-            print("test_formula", data.test_formula, type(data.test_formula))
-            for j = 1, 3 do
-                print("test_sformula", data.test_sformula, type(data.test_sformula))
-                print("formula expression", data.test_formula:GetExpression())
-                local exp_value = data.test_formula:CalcValue()
-                print("formula value", exp_value, type(exp_value))
-            end
-            print("============")
-        end
+        Util.ShowTB(tb)
     end
     TestParse()
 end

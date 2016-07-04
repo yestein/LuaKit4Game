@@ -9,7 +9,9 @@ local Class = require("lib.class")
 local assert = require("lib.assert")
 local CreateNode = require("framework.node_factory")
 
-local ModuleBase = CreateNode("MODULE_BASE", {"event", "save"})
+if not ModuleBase then
+    ModuleBase = CreateNode("MODULE_BASE", {"event", "save"})
+end
 
 function ModuleBase:_Uninit( ... )
     return 1

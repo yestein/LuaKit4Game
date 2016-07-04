@@ -9,7 +9,9 @@
 local Class = require("lib.class")
 local ItemBase = require("framework.item.item_base")
 
-local ItemBuff = Class:New(ItemBase, "BUFF")
+if not ItemBuff then
+    ItemBuff = Class:New(ItemBase, "BUFF")
+end
 
 function ItemBuff:_Uninit()
     return 1
@@ -19,6 +21,20 @@ function ItemBuff:_Init(id, template)
     self:SetDataByKey("luancher_list", {})
     self:SetDataByKey("capacity", 1)
     return 1
+end
+
+function ItemBuff:GetContainer()
+    return self.container
+end
+
+
+function ItemBuff:SetContainer(container)
+    self.__AddBaseValue("container", container)
+end
+
+function ItemBuff:GetOwner()
+    local container = self:GetContainer()
+    return container:GetParent()
 end
 
 function ItemBuff:SetCapacity(capacity)
@@ -33,7 +49,6 @@ end
 function ItemBuff:GetLuancherList()
     return self:GetDataByKey("luancher_list")
 end
-
 
 function ItemBuff:GetStackCount()
     local count = 0
@@ -59,27 +74,47 @@ function ItemBuff:AddStackCount(luancher, count)
         return
     end
     local luancher_list = self:GetLuancherList()
+    if not luancher then
+        luancher = 0
+    end
     if not luancher_list[luancher] then
         luancher_list[luancher] = 0
     end
-    luancher_list[luancher] = luancher_list[luancher] + count
-    self:FireEvent("ADD", self:GetId(), self:GetTemplate(), luancher, count, cur_count + count)
+    for i = 1, count do
+        luancher_list[luancher] = luancher_list[luancher] + 1
+        self:TryCall("TriggerAddEffect", luancher)
+    end
+    self:FireEvent("ADD", self:GetId(), self:GetTemplate(), self:GetOwner():GetId(), luancher, cur_count, cur_count + count)
     return cur_count + count
 end
 
-function ItemBuff:RemoveStackCount(count)
+function ItemBuff:RemoveStackCount(count, buff_luancher)
     local rest_count = count
     local luancher_list = self:GetLuancherList()
-    for luancher, num in pairs(luancher_list) do
-        if num <= rest_count then
-            rest_count = rest_count - num
-            luancher_list[luancher] = nil
-        else
-            luancher_list[luancher] = luancher_list[luancher] - rest_count
-            rest_count = 0
+    local sum_remove_count = 0
+    local function RemoveFromLuancher(luancher)
+        local num = luancher_list[luancher]
+        if num > rest_count then
+            num = rest_count
         end
+        for i = 1, num do
+            self:TryCall("TriggerRemoveEffect", luancher)
+            luancher_list[luancher] = luancher_list[luancher] - 1
+            rest_count = rest_count - 1
+        end
+        if luancher_list[luancher] == 0 then
+            luancher_list[luancher] = nil
+        end
+        return num
     end
-    self:FireEvent("REMOVE", self:GetId(), self:GetTemplate(), count)
+    if not buff_luancher then
+        for luancher, num in pairs(luancher_list) do
+            sum_remove_count = sum_remove_count + RemoveFromLuancher(luancher)
+        end
+    else
+        sum_remove_count = RemoveFromLuancher(buff_luancher)
+    end
+    self:FireEvent("REMOVE", self:GetId(), self:GetTemplate(), self:GetOwner():GetId(), sum_remove_count)
     return rest_count
 end
 
@@ -89,6 +124,7 @@ function ItemBuff:TimerActive()
     if rest_time and rest_time > 0 then
         rest_time = rest_time - 1
         self:SetDataByKey("rest_time", rest_time)
+        self:TriggerTickEffect()
         if rest_time == 0 then
             is_remove = 1
         end
@@ -101,23 +137,29 @@ function ItemBuff:ResetTimer()
     return self:SetDataByKey("rest_time", self:GetDataByKey("lasts_time"))
 end
 
-function ItemBuff:GetRestFrame()
+function ItemBuff:GetRestTime()
     return self:GetDataByKey("rest_time")
 end
 
 --Unit Test
 if arg and arg[1] == "item_buff" then
-    local item1 = Class:New(ItemBuff)
+    local Debug = require("framework.debug")
+    Debug:HookEvent(Debug.MODE_BLACK_LIST)
+    local item1 = ItemBuff.New()
     item1:Init("1", "test")
     item1:SetCapacity(3)
+    item1:AddStackCount("wang2", 1)
     item1:AddStackCount("zhang3", 1)
     item1:AddStackCount("li4", 1)
+    item1:RemoveStackCount(3, "zhang3")
+    print("count", item1:GetStackCount())
+    item1:RemoveStackCount(3)
     print("count", item1:GetStackCount())
     local Util = require("lib.util")
     Util.ShowTB(item1:GetLuancherList())
     local item2 = Class:New(ItemBuff)
     function item2:Active()
-        print("Active", self:GetRestFrame())
+        print("Active", self:GetRestTime())
     end
     item2:Init("1", "test")
     item2:SetCapacity(1)

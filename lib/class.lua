@@ -7,13 +7,11 @@
 --                     2. can make the call order of (Init | Uninit) like (instructor | destructor)
 -- Modify       :
 --=======================================================================
-if not G_Class then
-    G_Class = {
+if not Class then
+    Class = {
         class_list = {}
     }
 end
-local Class = G_Class
-local ClassList = {}
 
 local assert = require("lib.assert")
 
@@ -168,6 +166,9 @@ function Class:New(base_class, class_name)
         SetClassData = function(self, new_data)
             data = new_data
         end,
+        New = function()
+            return Class:New(new_class)
+        end,
     }
     base_value_list.__AddBaseValue = function(k, v)
         base_value_list[k] = v
@@ -186,10 +187,17 @@ function Class:New(base_class, class_name)
                 if v then
                     return v
                 end
+                v = table:GetDataByKey(key)
+                if v then
+                    return v
+                end
                 if base_class then
                     return base_class[key]
                 end
-            end
+            end,
+            __call = function(tb)
+                return tb.New()
+            end,
         }
     )
     new_class:__AddInheritFunctionOrder("Init")
@@ -274,7 +282,7 @@ if arg and arg[1] == "class" then
         self.d = d
     end
     test:Init(1, 2, 3, 4)
-    print(test:GetDataByKey("A"), test.b, test.c, test.d)
+    print(test:GetDataByKey("A"), test.A, test.b, test.c, test.d)
     test:SetClassData({A = 100, B = 21})
     print(test:GetDataByKey("A"))
     print(test:GetDataByKey("B"))

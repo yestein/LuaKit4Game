@@ -6,11 +6,9 @@
 -- Modify       :
 --=======================================================================
 
-if not G_Log then
-    G_Log = {}
+if not Log then
+    Log = {}
 end
-
-local Log = G_Log
 
 Log.LOG_DEBUG   = 1
 Log.LOG_INFO    = 2

@@ -23,33 +23,45 @@ function LuaSegment:GetExpression()
     return self.expression
 end
 
-function LuaSegment:Run(runtime_env)
+function LuaSegment:Eval(runtime_env)
     local f = load(self.expression, "lua segment", "t", runtime_env or _ENV)
-    local success, result = Util.SafeCall(f)
-    if not success then
-        return
-    end
-    return result
+    assert(f, self.expression)
+    -- return Util.SafeCall(f)
+    return select(2, Util.SafeCall(f))
 end
 
 local function NewLuaSegment(lua_expression)
+    if not lua_expression or lua_expression == "" then
+        return
+    end
     local segment = Class:New(LuaSegment)
     segment:Init(lua_expression)
     return segment
 end
 
 --Unit Test
-if arg and arg[1] == "lua_segment" then
+if arg and arg[1] == "lua_segment.bytes" then
     local env = {
         author = "Yestein",
         reader = "Qiqi",
         hello = "Hello",
         say = function(speaker, target, word)
             print(string.format("%s say \"%s\" to %s", speaker, word, target))
+            return true
         end,
     }
     local segment = NewLuaSegment("return say(author, reader, hello)")
-    segment:Run(env)
+    print(segment:Eval(env))
+
+    local segment_error = NewLuaSegment("say(assert(false))")
+    print(segment_error:Eval(env))
+
+    local segment_no_return = NewLuaSegment("say(author, reader, hello)")
+    print(segment_no_return:Eval(env))
+
+
+    local segment_null = NewLuaSegment("")
+    print(segment_null and segment_null:Eval(env))
 end
 
 return NewLuaSegment

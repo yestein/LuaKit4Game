@@ -37,12 +37,12 @@ function LogicBaseNode:_Uninit( ... )
     end
 
     self:UnRegistAllTimer()
-    self.timer_list = nil
+    self.timer_id_list = nil
 
     self:UninitChild()
     self:UnregistAllEventListen()
-    self.child_list       = nil
-    self.is_debug          = nil
+    self.child_list = nil
+    self.is_debug = nil
 
     return 1
 end
@@ -102,7 +102,7 @@ function LogicBaseNode:AddChild(child_name, child)
 
     assert(not self.child_list[child_name])
     self.child_list[child_name] = child
-    child:__AddBaseValue("__parent", self)
+    child.__AddBaseValue("__parent", self)
 end
 
 function LogicBaseNode:RemoveChild(child_name)
@@ -167,33 +167,30 @@ function LogicBaseNode:Print(log_level, fmt, ...)
 end
 
 function LogicBaseNode:LoadTimer(timer_name, timer)
-    self.timer_list[timer_name] = {timer, {}}
-end
-
-function LogicBaseNode:GetTimer(timer_name)
     if not self.timer_list then
         self.timer_list = {}
     end
-    local timer_info = self.timer_list[timer_name]
-    if timer_info then
-        return timer_info[1], timer_info[2]
-    end
+    self.timer_list[timer_name] = timer
 end
 
-function LogicBaseNode:OnTimer(timer_id_list, callback, timer_id)
-     if timer_id then
-        timer_id_list[timer_id] = nil
+function LogicBaseNode:GetTimer(timer_name)
+    local timer = self.timer_list[timer_name]
+    if not self.timer_id_list then
+        self.timer_id_list = {}
     end
-    Util.SafeCall(callback)
+    if not self.timer_id_list[timer_name] then
+        self.timer_id_list[timer_name] = {}
+    end
+    return timer, self.timer_id_list[timer_name]
 end
 
-function LogicBaseNode:RegistTimer(timer_name, frame, callback)
+function LogicBaseNode:RegistTimer(timer_name, time, ...)
     local timer, timer_id_list = self:GetTimer(timer_name)
     if not timer then
         assert(false, timer_name)
         return
     end
-    local timer_id = timer:RegistTimer(frame, self.OnTimer, self, timer_id_list, callback)
+    local timer_id = timer:RegistTimer(time, ...)
     if timer_id then
         timer_id_list[timer_id] = 1
     end
@@ -211,22 +208,22 @@ function LogicBaseNode:UnregistTimer(timer_name, timer_id)
 end
 
 function LogicBaseNode:UnRegistAllTimer()
-    if not self.timer_list then
+    if not self.timer_id_list then
         return
     end
-    for timer_name, timer_info in pairs(self.timer_list) do
-        local timer, timer_id_list = timer_info[1], timer_info[2]
+    for timer_name, timer_id_list in pairs(self.timer_id_list) do
+        local timer = self.timer_list[timer_name]
         for timer_id, _ in pairs(timer_id_list) do
             timer:CloseTimer(timer_id)
         end
-        timer_info[2] = {}
+        self.timer_id_list[timer_name] = nil
     end
 end
 
 --Unit Test
 if arg and arg[1] == "logic_base_node" then
     local Debug = require("framework.debug")
-    local a = Class:New(LogicBaseNode)
+    local a = LogicBaseNode.New()
     a:ImportHandler("event")
     LogicBaseNode:ImportHandler("event")
     function LogicBaseNode:testListen(p, q)
@@ -245,6 +242,7 @@ if arg and arg[1] == "logic_base_node" then
     LogicBaseNode:FireEvent("TEST_TRIGGER", 1, "a")
     LogicBaseNode:FireEvent("TEST_TRIGGER", 2)
     LogicBaseNode:FireEvent("TEST_TRIGGER", 3)
+
 end
 
 return LogicBaseNode

@@ -9,14 +9,13 @@
 local Class = require("lib.class")
 local assert = require("lib.assert")
 
-if not G_ModuleMgr then
-    G_ModuleMgr = {
+if not ModuleMgr then
+    ModuleMgr = {
         module_list = {},
     }
 end
 
-local ModuleMgr = G_ModuleMgr
-local ModuleBase = require("framework.module_base")
+require("framework.module_base")
 
 function ModuleMgr:NewModule(module_name)
     local class_module = Class:New(ModuleBase, module_name)

@@ -8,7 +8,9 @@
 local Class = require("lib.class")
 local ItemBase = require("framework.item.item_base")
 
-local ItemNormal = Class:New(ItemBase, "ITEM_NORMAL")
+if not ItemNormal then
+    ItemNormal = Class:New(ItemBase, "ITEM_NORMAL")
+end
 
 function ItemNormal:_Uninit()
 

@@ -6,7 +6,9 @@
 -- Modify       :
 --=======================================================================
 
-local SaveHandler = {}
+if not SaveHandler then
+    SaveHandler = {}
+end
 
 function SaveHandler:Init()
     -- body

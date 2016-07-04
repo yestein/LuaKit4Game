@@ -9,13 +9,13 @@
 local Util = require("lib.util")
 local assert = require("lib.assert")
 
-if not G_Event then
-    G_Event = {
+if not LuaEvent then
+    LuaEvent = {
         global_event_list = {}
     }
 end
 
-local Event = G_Event
+local Event = LuaEvent
 
 function Event:Init()
 

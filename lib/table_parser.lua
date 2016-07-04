@@ -36,11 +36,19 @@ local function FormulaValue(v, row_data, raw_line_no, table_data, gen_env_func)
     return NewFormula(v, row_data, raw_line_no, table_data, gen_env_func):CalcValue()
 end
 
+local function LuaResult(v)
+    if not v or v == "" then
+        return nil
+    end
+    return NewLuaSegment("return " ..  v)
+end
+
 TableParser.AddParseRule("str", ToStr)
 TableParser.AddParseRule("num", ToNumber)
 TableParser.AddParseRule("comment", ToComment)
 TableParser.AddParseRule("value", Util.Str2Val)
 TableParser.AddParseRule("lua", NewLuaSegment)
+TableParser.AddParseRule("lua_ret", LuaResult)
 TableParser.AddParseRule("formula", NewFormula)
 TableParser.AddParseRule("static_formula", FormulaValue)
 
@@ -69,14 +77,14 @@ function TableParser.Parse(value_type, value, ...)
 end
 
 --Unit Test
-if arg and arg[1] == "table_parser" then
+if arg and arg[1] == "table_parser.bytes" then
     print(TableParser.Parse("str", "abcd"))
     print(TableParser.Parse("num", "23"))
     print(TableParser.Parse("comment", "this is comment"))
     local segment = TableParser.Parse("lua", "randomseed(seed); return random(min, max) + random(1, min)")
     print(segment)
-    print(segment:Run({seed = os.time(), randomseed = math.randomseed, random = math.random, min = 10, max = 20}))
-    print(segment:Run({seed = os.time(), randomseed = math.randomseed, random = function(a, b) return a end, min = 10, max = 20}))
+    print(segment:Eval({seed = os.time(), randomseed = math.randomseed, random = math.random, min = 10, max = 20}))
+    print(segment:Eval({seed = os.time(), randomseed = math.randomseed, random = function(a, b) return a end, min = 10, max = 20}))
     print(TableParser.Parse("value", "math.random(1,3) + 2"))
 
     local row_data = {a = 1, b = 2, c = "hello", d = "world"}

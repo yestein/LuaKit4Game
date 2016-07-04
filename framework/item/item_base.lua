@@ -9,11 +9,13 @@ local Class = require("lib.class")
 local assert = require("lib.assert")
 local CreateNode = require("framework.node_factory")
 
-local ItemBase = CreateNode("ITEM_BASE", {"event"})
-ItemBase:__AddInheritFunctionOrder("OnCreate")
-ItemBase:__AddInheritFunctionOrder("OnUse")
-ItemBase:__AddInheritFunctionOrder("OnDrop")
-ItemBase:__AddInheritFunctionOrder("OnDestroy")
+if not ItemBase then
+    ItemBase = CreateNode("ITEM_BASE", {"event", "save"})
+    ItemBase:__AddInheritFunctionOrder("OnCreate")
+    ItemBase:__AddInheritFunctionOrder("OnUse")
+    ItemBase:__AddInheritFunctionOrder("OnDrop")
+    ItemBase:__AddInheritFunctionOrder("OnDestroy")
+end
 
 function ItemBase:_Uninit(...)
     self:OnDestroy()
@@ -37,7 +39,7 @@ end
 
 --Unit Test
 if arg and arg[1] == "item_base" then
-    local item = Class:New(ItemBase)
+    local item = ItemBase.New()
     item:Init("1", "test")
     print(item:GetId())
     print(item:GetTemplate())

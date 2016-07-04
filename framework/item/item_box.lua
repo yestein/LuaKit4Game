@@ -7,12 +7,18 @@
 --=======================================================================
 
 local Class = require("lib.class")
-local assert = require("lib.assert")
-
 local ItemBase = require("framework.item.item_base")
-local ItemBox = Class:New(ItemBase, "ITEM_BOX")
+if not ItemBox then
+    ItemBox = Class:New(ItemBase, "ITEM_BOX")
+end
 
 function ItemBox:_Uninit()
+    for id, item in pairs(self.item_list) do
+        self:DestroyItemById(id)
+    end
+    self.item_list = nil
+    self.search_item_list = nil
+
     return 1
 end
 
@@ -29,7 +35,7 @@ function ItemBox:AddItem(item)
     local class_name = item:GetClassName()
     local template = item:GetTemplate()
     self:AddToSearchList(class_name, template, id)
-
+    self:FireEvent("ADD_ITEM", id)
     local success, need_remove = item:OnCreate()
     if need_remove == 1 then
         self:RemoveItemById(id)
@@ -53,6 +59,7 @@ function ItemBox:RemoveItemById(id)
     local template = item:GetTemplate()
     self:RemoveFromSearchList(class_name, template, id)
     self.item_list[id] = nil
+    self:FireEvent("REMOVE_ITEM", id)
     return item
 end
 
@@ -153,7 +160,7 @@ function ItemBox:UseItemById(id, ...)
             self:DestroyItemById(id)
         end
     end
-    return result, reason
+    return result, reason, need_remove
 end
 
 -- Unit Test
