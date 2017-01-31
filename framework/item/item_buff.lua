@@ -84,7 +84,7 @@ function ItemBuff:AddStackCount(luancher, count)
         luancher_list[luancher] = luancher_list[luancher] + 1
         self:TryCall("TriggerAddEffect", luancher)
     end
-    self:FireEvent("ADD", self:GetId(), self:GetTemplate(), self:GetOwner():GetId(), luancher, cur_count, cur_count + count)
+    self:FireEvent("ADD", self:GetId(), self:GetTemplateId(), self:GetOwner():GetId(), luancher, cur_count, cur_count + count)
     return cur_count + count
 end
 
@@ -114,7 +114,7 @@ function ItemBuff:RemoveStackCount(count, buff_luancher)
     else
         sum_remove_count = RemoveFromLuancher(buff_luancher)
     end
-    self:FireEvent("REMOVE", self:GetId(), self:GetTemplate(), self:GetOwner():GetId(), sum_remove_count)
+    self:FireEvent("REMOVE", self:GetId(), self:GetTemplateId(), self:GetOwner():GetId(), sum_remove_count)
     return rest_count
 end
 
@@ -145,7 +145,7 @@ end
 if arg and arg[1] == "item_buff" then
     local Debug = require("framework.debug")
     Debug:HookEvent(Debug.MODE_BLACK_LIST)
-    local item1 = ItemBuff.New()
+    local item1 = ItemBuff()
     item1:Init("1", "test")
     item1:SetCapacity(3)
     item1:AddStackCount("wang2", 1)
@@ -157,7 +157,7 @@ if arg and arg[1] == "item_buff" then
     print("count", item1:GetStackCount())
     local Util = require("lib.util")
     Util.ShowTB(item1:GetLuancherList())
-    local item2 = Class:New(ItemBuff)
+    local item2 = ItemBuff()
     function item2:Active()
         print("Active", self:GetRestTime())
     end

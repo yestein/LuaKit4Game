@@ -10,11 +10,11 @@ if not SaveHandler then
     SaveHandler = {}
 end
 
-function SaveHandler:Init()
+function SaveHandler.Init(parent)
     -- body
 end
 
-function SaveHandler:Uninit()
+function SaveHandler.Uninit(parent)
 
 end
 

@@ -19,6 +19,7 @@ require("framework.module_base")
 
 function ModuleMgr:NewModule(module_name)
     local class_module = Class:New(ModuleBase, module_name)
+    class_module:OnCreate()
     self:_AddModule(module_name, class_module)
     return class_module
 end

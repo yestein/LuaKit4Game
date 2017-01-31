@@ -9,6 +9,7 @@ local Util = require("lib.util")
 local assert = require("lib.assert")
 local NewFormula = require("lib.formula")
 local NewLuaSegment = require("lib.lua_segment")
+local Fraction = require "lib.fraction"
 
 local PARSE_TXT_FUNC_LIST = {}
 local TableParser = {}
@@ -43,9 +44,19 @@ local function LuaResult(v)
     return NewLuaSegment("return " ..  v)
 end
 
+local function ToFraction(v)
+    local numerator, denominator = string.match(v, "(%d*)/(%d*)")
+    if not numerator then
+        numerator = tonumber(v)
+        denominator = 1
+    end
+    return Fraction(numerator, denominator)
+end
+
 TableParser.AddParseRule("str", ToStr)
 TableParser.AddParseRule("num", ToNumber)
 TableParser.AddParseRule("comment", ToComment)
+TableParser.AddParseRule("fraction", ToFraction)
 TableParser.AddParseRule("value", Util.Str2Val)
 TableParser.AddParseRule("lua", NewLuaSegment)
 TableParser.AddParseRule("lua_ret", LuaResult)
@@ -86,6 +97,9 @@ if arg and arg[1] == "table_parser.bytes" then
     print(segment:Eval({seed = os.time(), randomseed = math.randomseed, random = math.random, min = 10, max = 20}))
     print(segment:Eval({seed = os.time(), randomseed = math.randomseed, random = function(a, b) return a end, min = 10, max = 20}))
     print(TableParser.Parse("value", "math.random(1,3) + 2"))
+
+    local fraction = TableParser.Parse("fraction", "2/3")
+    print(fraction, fraction:Value())
 
     local row_data = {a = 1, b = 2, c = "hello", d = "world"}
     local formula = TableParser.Parse("formula", "((_row.a + level) * _row.b * 10 + _random(1, 10)) .. [[ ]] .. _row.c .. [[ ]] .. _row.d", row_data, 1, {row_data},

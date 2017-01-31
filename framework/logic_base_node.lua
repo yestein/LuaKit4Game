@@ -14,21 +14,24 @@ local assert = require("lib.assert")
 local handler_list = {
     event = require("framework.handler.event_handler"),
     save = require("framework.handler.save_handler"),
-    fsm = require("framework.handler.fsm")
+    fsm = require("framework.handler.fsm"),
+    timer = require("framework.handler.timer_handler"),
 }
 
 if not LogicBaseNode then
     LogicBaseNode = Class:New(nil, "LOGIC_BASE_NODE")
 end
 
-function LogicBaseNode:_Init( ... )
-    local import_handler_list = self.import_handler_list
-    if import_handler_list then
-        for name, handler in pairs(import_handler_list) do
-            handler.Init(self, ...)
+function LogicBaseNode:_OnCreate()
+    if self.import_handler_list then
+        for name, handler in pairs(self.import_handler_list) do
+            handler.Init(self)
         end
     end
-    return 1
+end
+
+function LogicBaseNode:IsValid( ... )
+    return not self.invalid
 end
 
 function LogicBaseNode:_Uninit( ... )
@@ -36,14 +39,11 @@ function LogicBaseNode:_Uninit( ... )
         handler.Uninit(self, ...)
     end
 
-    self:UnRegistAllTimer()
-    self.timer_id_list = nil
-
     self:UninitChild()
-    self:UnregistAllEventListen()
     self.child_list = nil
     self.is_debug = nil
-
+    self.invalid = true
+    self:SetClassData({})
     return 1
 end
 
@@ -59,7 +59,6 @@ function LogicBaseNode:ImportHandler(name)
         import_handler_list = self.import_handler_list
     end
     import_handler_list[name] = handler
-
     if not handler.import_function then
         return
     end
@@ -166,82 +165,48 @@ function LogicBaseNode:Print(log_level, fmt, ...)
     log_node:Print(log_level, fmt, ...)
 end
 
-function LogicBaseNode:LoadTimer(timer_name, timer)
-    if not self.timer_list then
-        self.timer_list = {}
-    end
-    self.timer_list[timer_name] = timer
-end
-
-function LogicBaseNode:GetTimer(timer_name)
-    local timer = self.timer_list[timer_name]
-    if not self.timer_id_list then
-        self.timer_id_list = {}
-    end
-    if not self.timer_id_list[timer_name] then
-        self.timer_id_list[timer_name] = {}
-    end
-    return timer, self.timer_id_list[timer_name]
-end
-
-function LogicBaseNode:RegistTimer(timer_name, time, ...)
-    local timer, timer_id_list = self:GetTimer(timer_name)
-    if not timer then
-        assert(false, timer_name)
-        return
-    end
-    local timer_id = timer:RegistTimer(time, ...)
-    if timer_id then
-        timer_id_list[timer_id] = 1
-    end
-    return timer_id
-end
-
-function LogicBaseNode:UnregistTimer(timer_name, timer_id)
-    local timer, timer_id_list = self:GetTimer(timer_name)
-    if not timer then
-        assert(false, timer_name)
-        return
-    end
-    timer:CloseTimer(timer_id)
-    timer_id_list[timer_id] = nil
-end
-
-function LogicBaseNode:UnRegistAllTimer()
-    if not self.timer_id_list then
-        return
-    end
-    for timer_name, timer_id_list in pairs(self.timer_id_list) do
-        local timer = self.timer_list[timer_name]
-        for timer_id, _ in pairs(timer_id_list) do
-            timer:CloseTimer(timer_id)
-        end
-        self.timer_id_list[timer_name] = nil
-    end
-end
 
 --Unit Test
-if arg and arg[1] == "logic_base_node" then
+if arg and arg[1] == "logic_base_node.bytes" then
     local Debug = require("framework.debug")
-    local a = LogicBaseNode.New()
-    a:ImportHandler("event")
     LogicBaseNode:ImportHandler("event")
-    function LogicBaseNode:testListen(p, q)
-        print(self:GetEventInfo())
-        print(p, q)
+
+    local a = LogicBaseNode.New()
+    a.name = "a"
+    local b = LogicBaseNode.New()
+    b.name = "b"
+
+    function b:testListen(p, q)
+        local trigger, event_name = self:GetEventInfo()
+        print(string.format("b Received Event:%s Trigger:%s", event_name, trigger.name))
+        print("Event Param:", p, q)
     end
     function a:testListen(p, q)
         self:FireEvent("TEST_TRIGGER_2", 3, 5)
-        print("test", self:GetEventInfo())
+        local trigger, event_name = self:GetEventInfo()
+        print(string.format("a Received Event:%s Trigger:%s", event_name, trigger.name))
+        print("Event Param:", p, q)
     end
-    print(LogicBaseNode, a)
-    LogicBaseNode:RegistEventListen("TEST_TRIGGER", "testListen")
-    LogicBaseNode:RegistEventListen("TEST_TRIGGER_2", "testListen")
+
     a:RegistEventListen("TEST_TRIGGER", "testListen")
+    b:RegistEventListen("TEST_TRIGGER", "testListen")
+    b:RegistEventListen("TEST_TRIGGER_2", "testListen")
+
     Debug:HookEvent(Debug.MODE_BLACK_LIST)
-    LogicBaseNode:FireEvent("TEST_TRIGGER", 1, "a")
-    LogicBaseNode:FireEvent("TEST_TRIGGER", 2)
-    LogicBaseNode:FireEvent("TEST_TRIGGER", 3)
+
+    b:FireEvent("TEST_TRIGGER", 1, "a")
+    b:FireEvent("TEST_TRIGGER", 2)
+    b:FireEvent("TEST_TRIGGER", 3)
+
+    local test_str_1 = "if Damage(target, 6 + level * 2, luancher, 1, true) then Bleed(target) end;"
+    local test_str_2 = "if Damage(target, 6 + level * 2, luancher, 1) then Bleed(target) end;"
+    local test_str_3 = "if Damage(target, 6 + level * 2, luancher) then Bleed(target) end;"
+    local test_str_4 = "if Damage(target, 6 + level * 2) then Bleed(target) end;"
+
+    print(string.match(test_str_1, ".*(Damage%(target, [^,]-%))"))
+    print(string.match(test_str_2, ".*(Damage%(target, [^,]-%))"))
+    print(string.match(test_str_3, ".*(Damage%(target, [^,]-%))"))
+    print(string.match(test_str_4, ".*(Damage%(target, [^,]-%))"))
 
 end
 

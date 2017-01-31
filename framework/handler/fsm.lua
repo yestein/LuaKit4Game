@@ -9,13 +9,13 @@ if not FSM then
     FSM = {}
 end
 
-function FSM:Init()
-    self.machine_data = {}
-    self:SetDataByKey("state", "start")
+function FSM.Init(parent)
+    parent.machine_data = {}
+    parent:SetDataByKey("state", "start")
 end
 
-function FSM:Uninit()
-    self.machine_data = nil
+function FSM.Uninit(parent)
+    parent.machine_data = nil
 end
 
 FSM.import_function = {
@@ -29,6 +29,9 @@ FSM.import_function = {
             machine_data[state] = {}
         end
         return machine_data[state]
+    end,
+    SetFSMState = function(self, state)
+        return self:SetDataByKey("state", state)
     end,
     GetFSMState = function(self)
         return self:GetDataByKey("state")

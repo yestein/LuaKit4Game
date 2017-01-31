@@ -28,6 +28,9 @@ local function GetConnectFunc()
                 connect_list = {},
             }
         end
+        if not x2 or not y2 then
+            return
+        end
         local start_info = store_result[x1][y1]
 
         if store_result[x2] and store_result[x2][y2] then
@@ -112,6 +115,7 @@ local function GetGenerator(near_iter, offset_func, try_connect)
         end
         local near_index, near_x, near_y
         local offset_list = offset_func()
+        try_connect(store_result, start_x, start_y)
         repeat
             near_index, near_x, near_y = near_iter(start_x, start_y, near_index, offset_list)
             if not near_x or not near_y then
@@ -146,6 +150,8 @@ local function RandomMazeByWay(start_x, start_y, max_x, max_y, main_way_length, 
     local result = {
         start_x = start_x,
         start_y = start_y,
+        max_x = max_x,
+        max_y = max_y,
         leaf_list = Util.GetUnionSet(),
         cross_list = Util.GetUnionSet(),
         path_list = {},
@@ -248,7 +254,7 @@ if arg and arg[1] == "maze_generator.bytes" then
 
     -- Util.ShowTB(stat_result)
 
-    local result = RandomMazeByWay(1, 2, max_depth, width, 7, 3, max_depth * width)
+    local result = RandomMazeByWay(1, 1, 1, 1, 7, 3, 1)
     local tb_2d = {}
     for x, list in pairs(result.matrix) do
         tb_2d[x] = {}

@@ -15,11 +15,14 @@ local function CreateNode(name, handler_list)
     for _, name in ipairs(handler_list) do
         node:ImportHandler(name)
     end
+    node:OnCreate()
     return node
 end
 
+
+
 --Unit Test
-if arg and arg[1] == "node_factory" then
+if arg and arg[1] == "node_factory.bytes" then
     local node_with_event = CreateNode("test", {"event"})
     node_with_event:FireEvent("TEST")
     print(node_with_event.FireEvent)

@@ -221,26 +221,29 @@ function ConfigLoader.GenerateConfig(tb, config_type, ...)
 end
 
 --Unit Test
-if arg and arg[1] == "config_loader" then
-    function TestGen()
-        local tb = ModelConfig.model
-        for _, data in pairs(tb) do
-            if data.offset then
-                data.offset_x = data.offset.x
-                data.offset_y = data.offset.y
-                data.offset = nil
+if arg and arg[1] == "config_loader.bytes" then
+    function TestParse()
+        local tb = ConfigLoader.LoadConfigFile("./setting/test_segment.txt", "table")
+        local t = os.clock()
+        for i = 1, 10000 do
+            tb[1].test_1:Eval({value = 1, print = print})
+        end
+        print(os.clock() - t)
+
+        local function Test(value)
+            for i = 1, 100 do
+                value = value + 1
             end
         end
-        Util.SaveFile("src/".. PROJECT_PATH .."/config/skelton_model_config.etb", ConfigLoader.GenerateConfig(tb, "txt"))
-    end
-
-    function TestParse()
-        local tb = ConfigLoader.LoadConfigFile("./setting/buff.txt", "table",
-            function()
-                return {_random = math.random}
-            end
-        )
-        Util.ShowTB(tb)
+        local test_2_tb = tb[1].test_2
+        tb[1].test_2 = function()
+            Test(test_2_tb[2])
+        end
+        local t = os.clock()
+        for i = 1, 10000 do
+            tb[1].test_2()
+        end
+        print(os.clock() - t)
     end
     TestParse()
 end

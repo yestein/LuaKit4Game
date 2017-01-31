@@ -20,10 +20,15 @@ end
 Dbg.MODE_BLACK_LIST = 1
 Dbg.MODE_WHITE_LIST = 2
 
-function Dbg:PrintEvent(event_type, ...)
+function Dbg:Print(...)
+    print(...)
+    print(debug.traceback())
+end
+
+function Dbg:PrintEvent(event_type, trigger, ...)
     local text = Util.TransArgs2Str(...)
-    local final_text = Log:ParseText("[%d]Event\t%s\t%s", self.frame_func and self.frame_func() or 0, event_type, text)
-    return Log:Print(Log.LOG_INFO, "[%d]Event\t%s\t%s", self.frame_func and self.frame_func() or 0, event_type, text)
+    -- local final_text = Log:ParseText("[%d]Event\t%s\t%s\t%s", self.frame_func and self.frame_func() or 0, tostring(trigger), event_type, text)
+    return Log:Print(Log.LOG_INFO, "[%d]Event\t%s\t%s\t%s", self.frame_func and self.frame_func() or 0, event_type, tostring(trigger), text)
 end
 
 function Dbg:AddBlackEvent(event_type, log_level)
@@ -41,14 +46,14 @@ function Dbg:AddWhiteEvent(event_type, log_level)
 end
 
 local EVENT_WATCHER = {
-    [Dbg.MODE_BLACK_LIST] = function(event_type, ...)
+    [Dbg.MODE_BLACK_LIST] = function(trigger, event_type, ...)
         if not Dbg.watch_event_black_list[event_type] then
-            Dbg:PrintEvent(event_type, ...)
+            Dbg:PrintEvent(event_type, trigger, ...)
         end
     end,
-    [Dbg.MODE_WHITE_LIST] = function(event_type, ...)
+    [Dbg.MODE_WHITE_LIST] = function(trigger, event_type, ...)
         if Dbg.watch_event_list[event_type] then
-            Dbg:PrintEvent(event_type, ...)
+            Dbg:PrintEvent(event_type, trigger, ...)
         end
     end,
 }
@@ -61,13 +66,13 @@ function Dbg:HookEvent(mode)
 end
 
 --Unit Test
-if arg and arg[1] == "debug" then
+if arg and arg[1] == "debug.bytes" then
     local function foo()
         return 43
     end
     Dbg:SetFrameFunc(foo)
     Dbg:HookEvent(Dbg.MODE_BLACK_LIST)
-    Event:FireEvent("TEST", 1, nil, "test", {}, function() print(1) end)
+    Event:FireEvent("Firer","TEST", 1, nil, "test", {}, function() print(1) end)
 end
 
 return Dbg

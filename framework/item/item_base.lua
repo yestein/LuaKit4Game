@@ -5,7 +5,6 @@
 -- Description  : item base class
 -- Modify       :
 --=======================================================================
-local Class = require("lib.class")
 local assert = require("lib.assert")
 local CreateNode = require("framework.node_factory")
 
@@ -33,7 +32,7 @@ function ItemBase:GetId()
     return self:GetDataByKey("id")
 end
 
-function ItemBase:GetTemplate()
+function ItemBase:GetTemplateId()
     return self:GetDataByKey("template")
 end
 
@@ -42,7 +41,7 @@ if arg and arg[1] == "item_base" then
     local item = ItemBase.New()
     item:Init("1", "test")
     print(item:GetId())
-    print(item:GetTemplate())
+    print(item:GetTemplateId())
     item:Uninit()
 end
 

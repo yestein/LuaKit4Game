@@ -9,12 +9,33 @@
 local assert = require("lib.assert")
 
 if not Util then
-    Util = {}
+    Util = {
+        DELEGATE_FUNC = {},
+    }
+end
+
+function Util.AddDelegate(key, func)
+    Util[key] = func
+    Util.DELEGATE_FUNC[key] = func
 end
 
 function Util.ImportLib(lib)
     for k, v in pairs(lib) do
         _ENV[k] = v
+    end
+end
+
+function Util.ImportModule(target_module, module_path)
+    local import_module = require(module_path)
+    if not import_module then
+        assert(false, "import error!")
+        return
+    end
+    for k, v in pairs(import_module) do
+        if target_module[k] then
+            print(string.format("[WARRNING] [%s] Conflict!!", k))
+        end
+        target_module[k] = v
     end
 end
 
@@ -24,6 +45,31 @@ function Util.SafeCall(callback, ...)
     end
     local function traceBack(s)
         print(debug.traceback(s, 2))
+    end
+    local callback_type = type(callback)
+    if callback_type == "table" then
+        local tb = {}
+        for i = 2 , #callback do
+            tb[#tb + 1] = callback[i]
+        end
+        local args = {...}
+        for i = 1, #args do
+            tb[#tb + 1] = args[i]
+        end
+        return xpcall(callback[1], traceBack, table.unpack(tb))
+    elseif callback_type == "function" then
+        return xpcall(callback, traceBack, ...)
+    else
+        assert(false)
+    end
+end
+
+function Util.SafeCallWithTraceback(callback, str, ...)
+    if not callback then
+        return
+    end
+    local function traceBack(s)
+        print(debug.traceback(s, 2) .. '\n' .. str)
     end
     local callback_type = type(callback)
     if callback_type == "table" then
@@ -163,6 +209,7 @@ function Util.ConcatArray(array_dest, array_src)
     for _, v in ipairs(array_src) do
         array_dest[#array_dest + 1] = v
     end
+    return array_dest
 end
 
 function Util.MergeTable(table_dest, table_src)
@@ -171,6 +218,9 @@ function Util.MergeTable(table_dest, table_src)
     end
     for k, v in pairs(table_src) do
         if type(table_dest[k]) == "number" and type(v) == "number" then
+            if not table_dest[k] then
+                table_dest[k] = 0
+            end
             table_dest[k] = table_dest[k] + v
         else
             table_dest[k] = v
@@ -185,7 +235,7 @@ end
 function Util.GetTBData(target_table, max_depth, depth)
     local ret_string = ""
     if not target_table then
-        ret_string = "nil"
+        ret_string = "table is nil"
         return ret_string
     end
     if not max_depth then
@@ -378,8 +428,15 @@ function Util.Table2Str(raw_tb, sort_func, line_format_func)
                 value_str = string.format("%q,", v)
             elseif type_value == "number" then
                 value_str = string.format("%d,", v)
+            elseif type_value == "boolean" then
+                if v then
+                    value_str = "true,"
+                else
+                    value_str = "false,"
+                end
             else
-                assert(false)
+                print(k, v, value_str)
+                assert(false, value_str)
                 return
             end
 
@@ -433,7 +490,7 @@ end
 function Util.LoadFile(file_path, callback)
     local file = io.open(file_path, "r")
     if not file then
-        print("can't find ", file_path)
+        print("Util can't find ", file_path)
         return
     end
     local content = file:read("a")
@@ -493,12 +550,15 @@ function Util.RandomPick(count, tb, save_func)
 end
 
 function Util.GetReadOnly(tb)
+    if not tb then
+        return
+    end
     local tb_read_only = {}
     local function iter()
         return pairs(tb)
     end
     local mt = {
-        __index = function(table, key)
+        __index = function(_, key)
             if key == "iter" then
                 return iter
             end
@@ -546,7 +606,7 @@ end
 function Util.GetAngle(raw_angle, x_1, y_1, x_2, y_2)
     local delta_x = x_2 - x_1
     local delta_y = y_2 - y_1
-
+    local angle
     if delta_x == 0 and delta_y >= 0 then
         angle = 0
     elseif delta_x > 0 and delta_y > 0 then
@@ -722,27 +782,47 @@ function Util.GetUnionSet()
         array = {},
     }
     local Set = {}
-    function Set.Add(element)
-        if not set_data.hash[element] then
-            table.insert(set_data.array, element)
-            set_data.hash[element] = 1
+    function Set.Add(key, value)
+        if not set_data.hash[key] then
+            table.insert(set_data.array, key)
+            set_data.hash[key] = value or 1
             return true
         end
         return false
     end
 
-    function Set.Remove(element)
+    function Set.Get(key)
+        if not set_data.hash[key] then
+            return
+        end
+        return set_data.hash[key]
+    end
+
+    function Set.Update(key, value)
+        if not value then
+            return false
+        end
+        if not set_data.hash[key] then
+            return false
+        end
+        set_data.hash[key] = value
+        return true
+    end
+
+    function Set.Remove(key)
         local index = nil
         for i, value in ipairs(set_data.array) do
-            if value == element then
+            if value == key then
                 index = i
                 break
             end
         end
         if index then
             table.remove(set_data.array, index)
-            set_data.hash[element] = nil
+            set_data.hash[key] = nil
+            return true
         end
+        return false
     end
 
     function Set._GetHash()
@@ -753,8 +833,19 @@ function Util.GetUnionSet()
         return set_data.array
     end
 
-    function Set.IsIn(element)
-        return set_data.hash[element] and true or false
+    function Set.IsIn(key)
+        if set_data.hash[key] then
+            return true
+        end
+        return false
+    end
+
+    function Set.IsEmpty()
+        return #set_data.array == 0
+    end
+
+    function Set.Count()
+        return #set_data.array
     end
 
     function Set.Clear()
@@ -763,19 +854,159 @@ function Util.GetUnionSet()
     end
 
     function Set.ForEach(func)
-        for _, element in ipairs(set_data.array) do
-            if func(element) == 1 then
+        for _, key in ipairs(set_data.array) do
+            local value = set_data.hash[key]
+            if func(key, value) == 1 then
                 break
             end
         end
     end
 
     function Set.Random()
-        local r = math.random(1, #set_data.array)
-        return set_data.array[r]
+        local count = #set_data.array
+        if count <= 0 then
+            return
+        end
+        local r = math.random(1, count)
+        local k = set_data.array[r]
+        local v = set_data.hash[k]
+        return k, v
+    end
+
+    function Set.GetSaveData()
+        return {set_data.hash, set_data.array}
+    end
+
+    function Set.Load(data)
+        set_data.hash = data[1]
+        set_data.array = data[2]
     end
 
     return Set
+end
+
+
+function Util.InheritTable(child, parent)
+    local mt = {
+        __index = function(tb, k)
+            local v = rawget(tb, k)
+            if v then
+                return v
+            end
+            return parent[k]
+        end,
+    }
+    setmetatable(child, mt)
+end
+
+function Util.CalcPosX(aligment, width, offset_x, interval_x, index, max_index)
+    if aligment == "left" then
+        local start_x = width / 2
+        return (index - 1) * (interval_x + width) + start_x + offset_x
+    elseif aligment == "right" then
+        local total_width = max_index * width + (max_index - 1) * interval_x
+        local start_x = -total_width + width / 2
+        return start_x + (index - 1) * (interval_x + width) + offset_x
+    elseif aligment == "center" then
+        local total_width = max_index * width + (max_index - 1) * interval_x
+        local start_x =  width / 2 - total_width / 2
+        return (index - 1) * (interval_x + width) + start_x + offset_x
+    end
+end
+
+function Util.CalcPosY(aligment, height, offset_y, interval_y, index, max_index)
+    if aligment == "top" then
+        local start_y = -height / 2
+        return -(index - 1) * (interval_y + height) + start_y + offset_y
+    elseif aligment == "bottom" then
+        local total_height = max_index * height + (max_index - 1) * interval_y
+        local start_y = total_height - height / 2
+        return start_y - (index - 1) * (interval_y + height) + offset_y
+    elseif aligment == "center" then
+        local total_height = max_index * height + (max_index - 1) * interval_y
+        local start_y =  total_height / 2 - height / 2
+        return start_y + offset_y - (index - 1) * (interval_y + height)
+    end
+end
+
+function Util.CalcRealIndex(index, max_index)
+    return (index - 1) % max_index + 1
+end
+
+function Util.FindArrayIndex(array, value)
+    for i, v in ipairs(array) do
+        if v == value then
+            return i
+        end
+    end
+end
+
+function Util.SetPrintValue(tb, value)
+    local mt = getmetatable(tb)
+    if type(value) == "function" then
+        mt.__tostring = value
+    elseif type(value) == "string" then
+        mt.__tostring = function()
+            return value
+        end
+    end
+end
+
+function Util.GCD(a, b)
+    if b == 0 then
+        return a
+    else
+        return Util.GCD(b, a % b)
+    end
+end
+
+function Util.LCM(a, b)
+    local gcd = Util.GCD(a, b)
+    return gcd * a * b
+end
+
+function Util.Rounding(num)
+    local int, float = math.modf(num)
+    if float < -0.4444 then
+        return int - 1
+    elseif float <= 0.4444 then
+        return int
+    else
+        return int + 1
+    end
+end
+
+function Util.FilterTB(tb, filter_func)
+    local result = {}
+    for k, v in pairs(tb) do
+        if filter_func(k, v) then
+            result[#result + 1] = v
+        end
+    end
+    return result
+end
+
+function Util.MakeParamKey(...)
+    local str = ""
+    local args = {...}
+    local count = select("#", ...)
+    for i = 1, count do
+        str = str .. tostring(args[i])
+        if i ~= count then
+            str = str .. "|"
+        end
+    end
+    return str
+end
+
+function Util.Cache()
+    local mem = {}
+    setmetatable(mem, {__mode = "kv"})
+    return mem
+end
+
+for key, func in pairs(Util.DELEGATE_FUNC) do
+    Util[key] = func
 end
 
 --Unit Test
@@ -850,6 +1081,7 @@ if arg and arg[1] == "util.bytes" then
         },
         ["1"] = "a",
         ["a"] = "a",
+        ["b"] = true,
     }
     local str1 = Util.Table2Str(test_table)
     print(str1)
@@ -894,6 +1126,60 @@ if arg and arg[1] == "util.bytes" then
     Util.ShowTB(tb)
 
     Util.ShowTB(Util.SplitToken("\t\t", "\t"))
+
+    local set = Util.GetUnionSet()
+    set.Add("a")
+    set.Add("b")
+
+    local str_data = Util.Table2Str(set.GetSaveData())
+    local set_2 = Util.GetUnionSet()
+    set_2.Load(Util.Str2Val(str_data))
+
+    Util.ShowTB(set_2._GetHash())
+    Util.ShowTB(set_2._GetArray())
+
+    local width = 100
+    local offset_x = 0
+    local interval_x = 20
+    local index = 1
+    local max_index = 3
+    local aligment = "left"
+    print(aligment, width, offset_x, interval_x, index, max_index)
+    print(Util.CalcPosX(aligment, width, offset_x, interval_x, index, max_index))
+
+    aligment = "right"
+    print(aligment, width, offset_x, interval_x, index, max_index)
+    print(Util.CalcPosX(aligment, width, offset_x, interval_x, index, max_index))
+
+    aligment = "center"
+    print(aligment, width, offset_x, interval_x, index, max_index)
+    print(Util.CalcPosX(aligment, width, offset_x, interval_x, index, max_index))
+
+    local height = 100
+    local offset_y = 0
+    local interval_y = 20
+    local index = 2
+    local max_index = 2
+    local aligment = "top"
+    print(aligment, height, offset_y, interval_y, index, max_index)
+    print(Util.CalcPosY(aligment, height, offset_y, interval_y, index, max_index))
+
+    aligment = "bottom"
+    print(aligment, height, offset_y, interval_y, index, max_index)
+    print(Util.CalcPosY(aligment, height, offset_y, interval_y, index, max_index))
+
+    aligment = "center"
+    print(aligment, height, offset_y, interval_y, index, max_index)
+    print(Util.CalcPosY(aligment, height, offset_y, interval_y, index, max_index))
+
+
+    print(Util.GCD(3,4))
+    print(Util.LCM(3,4))
+
+    print(Util.Rounding(3.4))
+    print(Util.Rounding(3.45))
+    print(Util.Rounding(-1.4))
+    print(Util.Rounding(-1.5))
 end
 
 return Util

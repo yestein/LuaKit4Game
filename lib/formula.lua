@@ -9,6 +9,14 @@ local Class = require("lib.class")
 local Util = require("lib.util")
 local FormulaBase = Class:New(nil, "FORMULA")
 
+function FormulaBase:_OnCreate(exp)
+    self.expression = exp
+    self.env = {}
+    self.call_func = load("return " .. self.expression, self.expression, "t", self.env)
+    Util.SetPrintValue(self, string.format("L'Fml[%s]", self.expression))
+    return 1
+end
+
 function FormulaBase:_Init(raw_row_data, raw_line_no, raw_table_data, gen_env_func)
     self.__AddBaseValue("gen_env_func", gen_env_func)
     self.__AddBaseValue("line_no", raw_line_no)
@@ -34,12 +42,23 @@ function FormulaBase:GetRunEnv()
 end
 
 function FormulaBase:GetExpression()
-    return self:GetClassName()
+    return self.expression
 end
 
 function FormulaBase:CalcValue()
     local formula_env = self:GetRunEnv()
-    local f = load("return " .. self.__class_name, "formula", "t", formula_env)
+     for k, v in pairs(formula_env) do
+        self.env[k] = v
+    end
+    local success, result = Util.SafeCall(self.call_func)
+    if success then
+        return result
+    end
+end
+
+function FormulaBase:CalcValue2()
+    local formula_env = self:GetRunEnv()
+    local f = load("return " .. self:GetExpression(), "formula", "t", formula_env)
     assert(f, self:GetExpression())
     local success, result = Util.SafeCall(f)
     if success then
@@ -48,13 +67,13 @@ function FormulaBase:CalcValue()
 end
 
 local function NewFormula(exp, raw_row_data, raw_line_no, raw_table_data, gen_env_func)
-    local formula = Class:New(FormulaBase, exp)
+    local formula = Class:Instance(FormulaBase, exp)
     formula:Init(raw_row_data, raw_line_no, raw_table_data, gen_env_func)
     return formula
 end
 
 --Unit Test
-if arg and arg[1] == "formula" then
+if arg and arg[1] == "formula.bytes" then
     local row_data = {a = 1, b = 2, c = "hello", d = "world"}
     local formula = NewFormula("((_row.a + level) * _row.b * 10 + _random(1, 10)) .. _row.c .. [[ ]] .. _row.d", row_data, 1, {row_data},
         function()
@@ -65,6 +84,32 @@ if arg and arg[1] == "formula" then
         end
     )
     print(formula:CalcValue())
+
+    local Sample = require "lib.decorator.sample"
+    local Stat = Sample.Stat
+    local GetStatInfo = Sample.GetStatInfo
+    local cost1 =
+        Stat ..
+        function()
+            formula:CalcValue()
+        end
+
+    for i = 1, 10000 do
+        cost1()
+    end
+
+    local cost2 =
+        Stat ..
+        function()
+            formula:CalcValue2()
+        end
+
+    for i = 1, 10000 do
+        cost2()
+    end
+    local stat_info_1 = GetStatInfo(cost1)
+    local stat_info_2 = GetStatInfo(cost2)
+    print(stat_info_1.time, stat_info_2.time)
 end
 
 return NewFormula

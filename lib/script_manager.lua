@@ -8,6 +8,7 @@
 
 local ScriptManager =  {}
 local ignore_list = {}
+local reload_function = {}
 
 require("lib.class")
 
@@ -39,7 +40,6 @@ function ScriptManager.Reload(script_name)
     end
 end
 
-print("自定义全局表")
 _G.GameGlobal = {}
 setmetatable(_G, {
     __index = function(table, k)

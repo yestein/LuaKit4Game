@@ -53,21 +53,20 @@ local function AddInheritFunctionOrder(self, function_name)
             print(string.format("%s%s %s..", string.rep("  ", depth), tostring(rawget(self, "__class_name")), function_name))
         end
         depth = depth - 1
-        if Class.is_debug == 1 then
-            print(string.format("%s!!%s %s End", string.rep("  ", depth), self:GetClassName(), function_name))
-        end
         local child_func = rawget(self, child_function_name)
         if not child_func then
-            if result then
-                return table.unpack(result, 2)
-            end
-            return 0
+            goto Exit
         end
         result = {xpcall(child_func, showStack, self, ...)}
         if not result[1] then
-            return 0
+            goto Exit
         end
-        return table.unpack(result, 2)
+
+        ::Exit::
+        if Class.is_debug == 1 then
+            print(string.format("%s!!%s %s End", string.rep("  ", depth), self:GetClassName(), function_name))
+        end
+        return result and table.unpack(result, 2) or 0
     end
     self.__AddBaseValue(function_name, Inherit)
 end
@@ -148,6 +147,12 @@ local function GetDataByKey(self, key)
     return data[key]
 end
 
+function Class:Instance(base_class, ...)
+    local new_class = self:New(base_class)
+    new_class:OnCreate(...)
+    return new_class
+end
+
 function Class:New(base_class, class_name)
     local _ENV = _ENV
     local new_class = {}
@@ -166,8 +171,8 @@ function Class:New(base_class, class_name)
         SetClassData = function(self, new_data)
             data = new_data
         end,
-        New = function()
-            return Class:New(new_class)
+        New = function(...)
+            return Class:Instance(new_class, ...)
         end,
     }
     base_value_list.__AddBaseValue = function(k, v)
@@ -195,19 +200,25 @@ function Class:New(base_class, class_name)
                     return base_class[key]
                 end
             end,
-            __call = function(tb)
-                return tb.New()
+            __tostring = function()
+                return string.format("%s(c)", new_class.__class_name)
+            end,
+            __call = function(self, ...)
+                return self.New(...)
             end,
         }
     )
+    new_class.__class_name = class_name --查看的时候还是需要看ClassName的
+
+    new_class:__AddInheritFunctionOrder("OnCreate")
     new_class:__AddInheritFunctionOrder("Init")
     new_class:__AddInheritFunctionDisorder("Uninit")
 
-    new_class.__class_name = class_name --查看的时候还是需要看ClassName的
     if class_name then
         -- assert(not self.class_list[class_name])
         self.class_list[class_name] = new_class
     end
+
     return new_class
 end
 
@@ -272,9 +283,13 @@ function Class.Load(load_data)
 end
 
 --Unit test
-if arg and arg[1] == "class" then
-    Class:EnableDebug(1)
-    local test = Class:New(nil, "aaa")
+if arg and arg[1] == "class.bytes" then
+    -- Class:EnableDebug(1)
+    local Test = Class:New(nil, "TEST")
+    function Test:_OnCreate(name)
+        print(tostring(name) .. " create!")
+    end
+    local test = Test("test")
     test._Init = function(self, a, b, c, d)
         self:SetDataByKey("A", a)
         self.b = b
@@ -301,8 +316,8 @@ if arg and arg[1] == "class" then
     test_b_1:Init(1, 2, 3, 4)
     print(test_b_1.a, test_b_1.b, test_b_1.c, test_b_1.d)
 
-    local test_name = Class:New(test)
-    print(test_name:GetClassName())
+    local test_name = test()
+    print(22, test_name:GetClassName())
 
     local test_call = Class:New(test)
 

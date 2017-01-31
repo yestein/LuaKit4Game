@@ -25,7 +25,7 @@ end
 
 function ItemNormal:SetCapacity(capacity)
     self:SetDataByKey("capacity", capacity)
-    self:FireEvent("CAPACITY_CHANGE", self:GetClassName(), self:GetTemplate(), self:GetId(), capacity)
+    self:FireEvent("CAPACITY_CHANGE", self:GetClassName(), self:GetTemplateId(), self:GetId(), capacity)
 end
 
 function ItemNormal:SetCount(count)
@@ -35,7 +35,7 @@ function ItemNormal:SetCount(count)
     end
     local old_count = self:GetStackCount()
     self:SetDataByKey("stack_count", count)
-    self:FireEvent("COUNT_CHANGE", self:GetClassName(), self:GetTemplate(), self:GetId(), old_count, count)
+    self:FireEvent("COUNT_CHANGE", self:GetClassName(), self:GetTemplateId(), self:GetId(), old_count, count)
     return count
 end
 
@@ -67,7 +67,7 @@ function ItemNormal:_OnUse(use_num, ...)
     end
 
     if result == 1 then
-        self:FireEvent("USE", self:GetClassName(), self:GetTemplate(), self:GetId(), use_num, ...)
+        self:FireEvent("USE", self:GetClassName(), self:GetTemplateId(), self:GetId(), use_num, ...)
     end
 
     if is_remove == 1 then
@@ -78,7 +78,7 @@ end
 
 --Unit Test
 if arg and arg[1] == "item_normal" then
-    local item = Class:New(ItemNormal)
+    local item = ItemNormal()
     item:Init("1", "test", 10)
     print(item:OnUse(11))
     print(item:OnUse(1))
